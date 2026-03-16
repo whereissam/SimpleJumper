@@ -68,14 +68,24 @@ var minimap_player : ColorRect  # Player dot on minimap
 
 var level_label    : Label
 var next_portal    : Area2D  # Appears when level is complete
+var world_seed     := 0      # Random seed for this session
+var seed_label     : Label
 
 # ══════════════════════════════════════════════════════════════════════════════
 func _ready() -> void:
+	randomize()
+	# Check if we're coming from a level switch or fresh start
+	if _next_seed != 0:
+		world_seed = _next_seed
+		current_level = _next_level
+		_next_seed = 0
+	else:
+		world_seed = randi() % 999999
 	_load_level(current_level)
 	_build_world()
 
 func _load_level(num: int) -> void:
-	level = LevelData.get_level(num)
+	level = LevelData.get_level(num, world_seed + num)
 	platform_data        = level.get("platforms", [])
 	moving_platform_data = level.get("moving", [])
 	wall_data            = level.get("walls", [])
@@ -933,30 +943,48 @@ func _on_exit_portal_entered(body: Node2D) -> void:
 
 func _go_next_level() -> void:
 	current_level += 1
-	# Remove everything except the root
-	for child in get_children():
-		child.queue_free()
+	_switch_level(current_level)
 
-	# Reset state
-	score = 0
-	total_coins = 0
-	elapsed_time = 0.0
-	level_complete = false
-	bullets.clear()
-	crumble_bodies.clear()
-	disappear_bodies.clear()
-	portal_pairs.clear()
-	player_in_portals.clear()
-	portal_cooldown = 0.0
-	player_node = null
-	next_portal = null
-	player_near_exit = false
+# Use a static to pass data between scene reloads
+static var _next_level := 1
+static var _next_seed  := 0
 
-	await get_tree().process_frame
-	await get_tree().process_frame
+func _switch_level(to_level: int) -> void:
+	_next_level = to_level
+	_next_seed  = world_seed
+	get_tree().reload_current_scene()
 
-	_load_level(current_level)
-	_build_world()
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var kb := event as InputEventKey
+		match kb.keycode:
+			KEY_1:
+				# Random Easy map
+				world_seed = randi() % 999999
+				_switch_level(1)
+			KEY_2:
+				# Random Medium map
+				world_seed = randi() % 999999
+				_switch_level(5)
+			KEY_3:
+				# Random Hard map
+				world_seed = randi() % 999999
+				_switch_level(8)
+			KEY_4:
+				# Random Extreme map
+				world_seed = randi() % 999999
+				_switch_level(11)
+			KEY_R:
+				# Re-roll: new random seed, same difficulty
+				world_seed = randi() % 999999
+				_switch_level(current_level)
+			KEY_N:
+				# Next level (slightly harder)
+				_switch_level(current_level + 1)
+			KEY_B:
+				# Back one level (easier)
+				if current_level > 1:
+					_switch_level(current_level - 1)
 
 # ── Enemies (patrol) ─────────────────────────────────────────────────────────
 func _make_enemies() -> void:
@@ -1422,7 +1450,7 @@ func _make_hud() -> void:
 	cl.add_child(timer_label)
 
 	var hint      := Label.new()
-	hint.text     = "← →  Move    Space/↑  Jump (x2)    Shift  Dash    Wall+Jump    ↓ at Portal  Teleport    Scroll  Zoom"
+	hint.text     = "← → Move  Space Jump  Shift Dash  ↓ Portal  1 Easy  2 Med  3 Hard  4 Extreme  R Reroll  N/B +/- Lv"
 	hint.position = Vector2(20, 692)
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65, 0.65))
