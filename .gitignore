@@ -1,0 +1,20 @@
+# Godot editor and import caches
+.godot/
+.import/
+
+# Exported builds and archives
+/builds/
+/dist/
+*.apk
+*.aab
+*.ipa
+*.exe
+*.x86_64
+*.x86_32
+*.pck
+*.zip
+*.tar.gz
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
