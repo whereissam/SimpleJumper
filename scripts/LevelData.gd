@@ -57,54 +57,60 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 				if y < 120:
 					break
 		1:
-			# SPIRAL -- platforms wind around the center
+			# SPIRAL -- platforms wind outward from center
 			var cx := 640.0
-			var cy := 400.0
-			var radius := 100.0
+			var cy := 420.0
+			var radius := 150.0
 			var angle := rng.randf_range(0, TAU)
-			for i in rng.randi_range(10, 16):
+			for i in rng.randi_range(8, 13):
 				var px := int(cx + cos(angle) * radius)
-				var py := int(cy + sin(angle) * radius * 0.6)
+				var py := int(cy + sin(angle) * radius * 0.5)
 				px = clampi(px, 100, 1180)
 				py = clampi(py, 130, 650)
-				var w := rng.randi_range(90, 180) - int(difficulty * 30)
-				platforms.append([px, py, maxi(w, 70), 22])
+				var w := rng.randi_range(100, 190) - int(difficulty * 30)
+				platforms.append([px, py, maxi(w, 80), 22])
 				coins.append(Vector2(px, py - 38))
-				angle += rng.randf_range(0.6, 1.2)
-				radius += rng.randf_range(20, 50)
+				angle += rng.randf_range(0.8, 1.4)
+				radius += rng.randf_range(30, 60)
 		2:
-			# TOWERS -- 2-4 vertical columns of platforms
-			var num_towers := rng.randi_range(2, 4)
+			# TOWERS -- 3-4 columns connected by bridges
+			var num_towers := rng.randi_range(3, 4)
+			var tower_xs : Array = []
 			for t in num_towers:
-				var tx := 150 + t * (1000 / num_towers) + rng.randi_range(-60, 60)
-				var ty := 600
-				var num_steps := rng.randi_range(3, 6)
+				var tx := 100 + t * (1080 / (num_towers + 1)) + rng.randi_range(-30, 30)
+				tower_xs.append(tx)
+				var ty := 580
+				var num_steps := rng.randi_range(3, 5)
 				for s in num_steps:
-					var w := rng.randi_range(100, 180) - int(difficulty * 30)
-					var offset_x := rng.randi_range(-50, 50)
-					platforms.append([clampi(tx + offset_x, 80, 1200), ty, maxi(w, 70), 22])
-					coins.append(Vector2(clampi(tx + offset_x, 80, 1200), ty - 38))
-					ty -= rng.randi_range(70, 120)
-					if ty < 130:
+					var w := rng.randi_range(120, 200) - int(difficulty * 30)
+					var offset_x := rng.randi_range(-30, 30)
+					var px := clampi(tx + offset_x, 80, 1200)
+					platforms.append([px, ty, maxi(w, 90), 22])
+					coins.append(Vector2(px, ty - 38))
+					ty -= rng.randi_range(90, 130)
+					if ty < 150:
 						break
-			# Bridges between towers
-			for i in rng.randi_range(1, 3):
-				var bx := rng.randi_range(200, 1000)
-				var by := rng.randi_range(250, 500)
-				platforms.append([bx, by, rng.randi_range(150, 300), 22])
+			# Bridges between adjacent towers at various heights
+			for t in range(0, num_towers - 1):
+				var num_bridges := rng.randi_range(1, 2)
+				for b in num_bridges:
+					var bx : int = (int(tower_xs[t]) + int(tower_xs[t + 1])) / 2 + rng.randi_range(-40, 40)
+					var by := rng.randi_range(250, 550)
+					platforms.append([bx, by, rng.randi_range(140, 240), 22])
+					coins.append(Vector2(bx, by - 38))
 		3:
 			# SCATTERED -- random walk through the level
 			var px := rng.randi_range(100, 400)
-			var py := 600
-			for i in rng.randi_range(12, 18):
-				var w := rng.randi_range(80, 200) - int(difficulty * 40)
-				platforms.append([px, py, maxi(w, 65), 22])
+			var py := 580
+			for i in rng.randi_range(10, 15):
+				var w := rng.randi_range(100, 210) - int(difficulty * 40)
+				platforms.append([px, py, maxi(w, 80), 22])
 				coins.append(Vector2(px, py - 38))
-				px += rng.randi_range(-200, 300)
-				py -= rng.randi_range(30, 100)
+				px += rng.randi_range(-180, 250)
+				py -= rng.randi_range(60, 110)
 				px = clampi(px, 80, 1200)
-				if py < 120:
-					py = rng.randi_range(400, 600)
+				if py < 150:
+					py = rng.randi_range(400, 560)
 					px = rng.randi_range(100, 1100)
 		4:
 			# STAIRCASE -- ascending then descending
@@ -127,30 +133,58 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 				x = clampi(x, 80, 1200)
 				y = clampi(y, 130, 640)
 		5:
-			# ISLANDS -- clusters of platforms grouped together
-			var num_islands := rng.randi_range(3, 6)
+			# ISLANDS -- clusters of platforms at different heights
+			var num_islands := rng.randi_range(3, 5)
 			for island in num_islands:
-				var ix := rng.randi_range(120, 1100)
-				var iy := rng.randi_range(180, 580)
-				var island_size := rng.randi_range(2, 4)
+				var ix := 150 + island * (960 / num_islands) + rng.randi_range(-40, 40)
+				var iy := rng.randi_range(200, 560)
+				var island_size := rng.randi_range(2, 3)
 				for p in island_size:
-					var ox := rng.randi_range(-80, 80)
-					var oy := rng.randi_range(-50, 50)
-					var w := rng.randi_range(80, 160) - int(difficulty * 20)
+					# Spread platforms horizontally and step up vertically
+					var ox := (p - island_size / 2) * rng.randi_range(100, 160)
+					var oy := -p * rng.randi_range(50, 80)
+					var w := rng.randi_range(100, 170) - int(difficulty * 20)
 					var fx := clampi(ix + ox, 80, 1200)
 					var fy := clampi(iy + oy, 130, 650)
-					platforms.append([fx, fy, maxi(w, 60), 22])
+					platforms.append([fx, fy, maxi(w, 80), 22])
 					coins.append(Vector2(fx, fy - 38))
 
-	# Always add a goal platform at the top
-	var top_exists := false
+	# -- Step 1: Remove overlapping platforms --
+	# Two platforms overlap if they're within 30px vertically and horizontally overlapping
+	var clean : Array = [platforms[0]]  # Always keep ground
+	for i in range(1, platforms.size()):
+		var p : Array = platforms[i]
+		var overlaps := false
+		for j in range(0, clean.size()):
+			var q : Array = clean[j]
+			var dx : int = absi(int(p[0]) - int(q[0]))
+			var dy : int = absi(int(p[1]) - int(q[1]))
+			# Too close = overlap (need at least 55px vertical gap)
+			if dx < (int(p[2]) + int(q[2])) / 2 + 10 and dy < 55:
+				overlaps = true
+				break
+		if not overlaps:
+			clean.append(p)
+	platforms = clean
+
+	# -- Step 2: Rebuild coins to match cleaned platforms --
+	coins.clear()
+	for i in range(1, platforms.size()):
+		var p : Array = platforms[i]
+		coins.append(Vector2(int(p[0]), int(p[1]) - 38))
+
+	# -- Step 3: Add a top platform if none exists --
+	var highest_y := 999
+	var highest_x := 640
 	for p in platforms:
-		if p[1] < 170:
-			top_exists = true
-			break
-	if not top_exists:
-		platforms.append([rng.randi_range(400, 800), rng.randi_range(120, 160), rng.randi_range(150, 250), 22])
-		coins.append(Vector2(platforms[-1][0], platforms[-1][1] - 38))
+		if int(p[1]) < highest_y and int(p[1]) < 680:
+			highest_y = int(p[1])
+			highest_x = int(p[0])
+	if highest_y > 200:
+		var top_x := clampi(highest_x + rng.randi_range(-100, 100), 200, 1080)
+		var top_y := clampi(highest_y - rng.randi_range(70, 100), 130, 200)
+		platforms.append([top_x, top_y, rng.randi_range(150, 250), 22])
+		coins.append(Vector2(top_x, top_y - 38))
 
 	# ── Enemies ──────────────────────────────────────────────────────────
 	var num_enemies := 2 + int(difficulty * 5)

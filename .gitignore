@@ -1,6 +1,7 @@
 # Godot editor and import caches
 .godot/
 .import/
+*.uid
 
 # Exported builds and archives
 /builds/

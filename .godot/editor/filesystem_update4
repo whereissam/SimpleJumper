@@ -1,2 +1,4 @@
 res://scripts/World.gd
 res://scripts/LevelData.gd
+res://scripts/Builder.gd
+res://scripts/Portals.gd
