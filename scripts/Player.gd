@@ -37,6 +37,14 @@ var hp             := 3
 var invincible     := 0.0
 var blink_timer    := 0.0
 
+# Power-ups
+var has_shield     := false
+var speed_boost    := 0.0     # Remaining boost time
+const BOOST_MULT  := 1.6
+
+# Checkpoint
+var respawn_pos    := Vector2(640, 630)
+
 # Visual nodes (set by World.gd)
 var body_rect  : ColorRect
 var eye_l      : ColorRect
@@ -44,11 +52,39 @@ var eye_r      : ColorRect
 var pupil_l    : ColorRect
 var pupil_r    : ColorRect
 var mouth_rect : ColorRect
+var shield_vis : Polygon2D   # Shield visual indicator
+var cam_zoom   := 1.0        # Camera zoom level
 
 signal hp_changed(new_hp: int)
 signal player_died
+signal shield_changed(has: bool)
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Scroll wheel zoom
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed:
+			if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+				cam_zoom = clampf(cam_zoom + 0.1, 0.4, 2.0)
+				_apply_zoom()
+			elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				cam_zoom = clampf(cam_zoom - 0.1, 0.4, 2.0)
+				_apply_zoom()
+
+func _apply_zoom() -> void:
+	var cam := get_node_or_null("Camera2D") as Camera2D
+	if cam:
+		cam.zoom = Vector2(cam_zoom, cam_zoom)
 
 func _physics_process(delta: float) -> void:
+	# ── Power-up timers ───────────────────────────────────────────────────
+	if speed_boost > 0.0:
+		speed_boost -= delta
+		if body_rect:
+			body_rect.color = Color(1.0, 0.6, 0.15) if int(speed_boost * 6) % 2 == 0 else Color(0.28, 0.55, 1.00)
+	elif body_rect and body_rect.color != Color(0.28, 0.55, 1.00):
+		body_rect.color = Color(0.28, 0.55, 1.00)
+
 	# ── Invincibility blink ───────────────────────────────────────────────
 	if invincible > 0.0:
 		invincible -= delta
@@ -57,6 +93,8 @@ func _physics_process(delta: float) -> void:
 			body_rect.modulate.a = 0.3 if int(blink_timer) % 2 == 0 else 1.0
 	elif body_rect and body_rect.modulate.a != 1.0:
 		body_rect.modulate.a = 1.0
+
+	var current_speed := SPEED * (BOOST_MULT if speed_boost > 0.0 else 1.0)
 
 	# ── Dash logic ────────────────────────────────────────────────────────
 	dash_cooldown = maxf(dash_cooldown - delta, 0.0)
@@ -93,7 +131,7 @@ func _physics_process(delta: float) -> void:
 		if (dir > 0.0 and _wall_on_right()) or (dir < 0.0 and _wall_on_left()):
 			is_wall_sliding = true
 			velocity.y = minf(velocity.y, WALL_SLIDE_SPEED)
-			jumps_left = 1  # Allow wall jump
+			jumps_left = 1
 
 	# ── Jump input buffer ─────────────────────────────────────────────────
 	if Input.is_action_just_pressed("ui_accept") \
@@ -126,24 +164,38 @@ func _physics_process(delta: float) -> void:
 	# ── Horizontal movement ───────────────────────────────────────────────
 	var dir := Input.get_axis("ui_left", "ui_right")
 	if dir != 0.0:
-		velocity.x = dir * SPEED
+		velocity.x = dir * current_speed
 		facing = 1 if dir > 0.0 else -1
 		_update_face_direction()
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, SPEED * 6.0 * delta)
+		velocity.x = move_toward(velocity.x, 0.0, current_speed * 6.0 * delta)
 
 	move_and_slide()
 
 	# ── Fall respawn ──────────────────────────────────────────────────────
 	if position.y > 920.0:
 		take_damage(1)
-		position   = Vector2(640, 630)
+		position   = respawn_pos
 		velocity   = Vector2.ZERO
 		jumps_left = MAX_JUMPS
+
+# ── Trampoline bounce ────────────────────────────────────────────────────────
+func trampoline_bounce() -> void:
+	velocity.y = JUMP_VEL * 1.5
+	jumps_left = MAX_JUMPS
 
 # ── Damage ───────────────────────────────────────────────────────────────────
 func take_damage(amount: int) -> void:
 	if invincible > 0.0:
+		return
+	if has_shield:
+		has_shield = false
+		invincible = 0.8
+		blink_timer = 0.0
+		shield_changed.emit(false)
+		if shield_vis:
+			shield_vis.visible = false
+		_spawn_shield_break()
 		return
 	hp -= amount
 	invincible  = 1.5
@@ -151,15 +203,32 @@ func take_damage(amount: int) -> void:
 	hp_changed.emit(hp)
 	if hp <= 0:
 		hp = max_hp
-		position   = Vector2(640, 630)
+		position   = respawn_pos
 		velocity   = Vector2.ZERO
 		jumps_left = MAX_JUMPS
 		invincible = 2.0
+		has_shield = false
+		speed_boost = 0.0
+		if shield_vis:
+			shield_vis.visible = false
+		shield_changed.emit(false)
 		player_died.emit()
 		hp_changed.emit(hp)
 
 func stomp_bounce() -> void:
 	velocity.y = JUMP_VEL * 0.6
+
+func grant_shield() -> void:
+	has_shield = true
+	shield_changed.emit(true)
+	if shield_vis:
+		shield_vis.visible = true
+
+func grant_speed_boost(duration: float) -> void:
+	speed_boost = duration
+
+func set_checkpoint(pos: Vector2) -> void:
+	respawn_pos = pos
 
 # ── Wall detection ───────────────────────────────────────────────────────────
 func _wall_on_right() -> bool:
@@ -209,3 +278,21 @@ func _spawn_dash_ghost() -> void:
 	var tw := get_tree().create_tween()
 	tw.tween_property(ghost, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(ghost.queue_free)
+
+func _spawn_shield_break() -> void:
+	for i in 10:
+		var shard := ColorRect.new()
+		shard.size  = Vector2(4, 4)
+		shard.color = Color(0.3, 0.9, 1.0, 0.8)
+		shard.position = global_position + Vector2(randf_range(-20, 20), randf_range(-25, 15))
+		shard.z_index = 5
+		get_parent().add_child(shard)
+
+		var angle := randf_range(0, TAU)
+		var target := shard.position + Vector2(cos(angle) * 40, sin(angle) * 40)
+		var tw := get_tree().create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(shard, "position", target, 0.4)
+		tw.tween_property(shard, "modulate:a", 0.0, 0.4)
+		tw.set_parallel(false)
+		tw.tween_callback(shard.queue_free)
