@@ -30,122 +30,23 @@ const PORTAL_CLR_B  := Color(0.9, 0.4, 0.1, 0.7)
 const PORTAL_GLOW_A := Color(0.6, 0.4, 1.0, 0.3)
 const PORTAL_GLOW_B := Color(1.0, 0.6, 0.2, 0.3)
 
-# ── Platform data: [center_x, center_y, width, height] ───────────────────────
-# WIDER platforms with more generous spacing
-var platform_data := [
-	[640, 692, 1600, 36],       # Ground floor
-	# Layer 1 (easy hops from ground)
-	[180, 570, 250, 22],
-	[460, 540, 220, 22],
-	[740, 510, 240, 22],
-	[1020, 540, 220, 22],
-	# Layer 2
-	[300, 420, 220, 22],
-	[580, 380, 200, 22],
-	[860, 400, 220, 22],
-	[1120, 360, 200, 22],
-	# Layer 3 (high)
-	[200, 280, 200, 22],
-	[480, 260, 180, 22],
-	[760, 240, 200, 22],
-	[1040, 270, 180, 22],
-	# Top
-	[620, 150, 280, 22],
-]
-
-# Moving platforms: [center_x, center_y, width, height, axis, distance, speed]
-var moving_platform_data := [
-	[160, 470, 130, 18, "x", 120, 55],
-	[950, 310, 120, 18, "y", 60, 40],
-]
-
-# Walls: [center_x, center_y, width, height]
-var wall_data := [
-	[50,  480, 28, 240],
-	[1230, 480, 28, 240],
-]
-
-# Crumbling platforms: [center_x, center_y, width, height]
-# Only 2, in non-critical spots (alternate routes)
-var crumble_data := [
-	[680, 320, 110, 18],
-	[400, 190, 100, 18],
-]
-
-# Disappearing platforms: [center_x, center_y, width, height, on_time, off_time, phase_offset]
-# Longer on-time, shorter off-time = more forgiving
-var disappear_data := [
-	[150, 350, 110, 18, 3.0, 1.0, 0.0],
-	[1050, 200, 100, 18, 3.0, 1.0, 1.5],
-]
-
-# Spikes: [center_x, center_y, count, spacing] (triangles pointing up)
-# Only 2 small groups, far from spawn
-var spike_data := [
-	[300, 680, 3, 20],      # Ground left (away from spawn)
-	[1000, 680, 3, 20],     # Ground right (away from spawn)
-]
-
-# Saw blades: [center_x, center_y, radius, axis, distance, speed]
-# Just 1 saw, slower, in an avoidable spot
-var saw_data := [
-	[640, 440, 14, "y", 50, 40],
-]
-
-# Trampolines: [center_x, center_y]
-# More trampolines = more fun shortcuts
-var trampoline_data := [
-	[100, 678],
-	[1180, 678],
-	[580, 500],
-	[860, 370],
-]
-
-# Checkpoints: [center_x, center_y]
-# 3 checkpoints so you don't lose much progress
-var checkpoint_data := [
-	[460, 518],
-	[580, 358],
-	[760, 218],
-]
-
-# Power-ups: [center_x, center_y, type] -- "shield" or "speed"
-# More shields to help survive
-var powerup_data := [
-	[740, 480, "shield"],
-	[300, 392, "speed"],
-	[620, 122, "shield"],
-	[200, 252, "shield"],
-]
-
-# Coin positions (on or near platforms, easy to reach)
-var coin_positions := [
-	Vector2(180, 532), Vector2(460, 502), Vector2(740, 472),
-	Vector2(1020, 502), Vector2(300, 382), Vector2(580, 342),
-	Vector2(860, 362), Vector2(1120, 322), Vector2(200, 242),
-	Vector2(480, 222), Vector2(760, 202), Vector2(1040, 232),
-	Vector2(620, 112),
-]
-
-# Enemies: [x, y, patrol_range, speed]
-# Fewer, slower enemies
-var enemy_data := [
-	[350, 670, 80, 40],
-	[740, 488, 60, 35],
-	[860, 378, 50, 30],
-]
-
-# Shooting enemies: [x, y, fire_interval, bullet_speed, direction]
-# Only 1 shooter, slow fire rate
-var shooter_data := [
-	[1230, 430, 3.5, 140, -1],
-]
-
-# Portals (MapleStory style): pairs of [x1, y1, x2, y2] -- press Up to teleport
-var portal_data := [
-	[120, 670, 620, 128],       # Ground left -> top
-	[1100, 538, 200, 258],      # Layer 1 right -> Layer 3 left
-]
+# ── Level data (loaded from LevelData.gd) ─────────────────────────────────────
+var current_level  := 1
+var level          : Dictionary
+var platform_data  : Array
+var moving_platform_data : Array
+var wall_data      : Array
+var crumble_data   : Array
+var disappear_data : Array
+var spike_data     : Array
+var saw_data       : Array
+var trampoline_data : Array
+var checkpoint_data : Array
+var powerup_data   : Array
+var coin_positions : Array
+var enemy_data     : Array
+var shooter_data   : Array
+var portal_data    : Array
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var score          := 0
@@ -165,8 +66,32 @@ var portal_cooldown := 0.0
 var minimap_node   : Control    # Minimap container
 var minimap_player : ColorRect  # Player dot on minimap
 
+var level_label    : Label
+var next_portal    : Area2D  # Appears when level is complete
+
 # ══════════════════════════════════════════════════════════════════════════════
 func _ready() -> void:
+	_load_level(current_level)
+	_build_world()
+
+func _load_level(num: int) -> void:
+	level = LevelData.get_level(num)
+	platform_data        = level.get("platforms", [])
+	moving_platform_data = level.get("moving", [])
+	wall_data            = level.get("walls", [])
+	crumble_data         = level.get("crumble", [])
+	disappear_data       = level.get("disappear", [])
+	spike_data           = level.get("spikes", [])
+	saw_data             = level.get("saws", [])
+	trampoline_data      = level.get("trampolines", [])
+	checkpoint_data      = level.get("checkpoints", [])
+	powerup_data         = level.get("powerups", [])
+	coin_positions       = level.get("coins", [])
+	enemy_data           = level.get("enemies", [])
+	shooter_data         = level.get("shooters", [])
+	portal_data          = level.get("portals", [])
+
+func _build_world() -> void:
 	_make_background()
 	_make_walls()
 	_make_platforms()
@@ -186,9 +111,16 @@ func _ready() -> void:
 	_make_hud()
 
 func _process(delta: float) -> void:
+	if not player_node or not timer_label:
+		return
 	portal_cooldown = maxf(portal_cooldown - delta, 0.0)
 	_check_portal_input()
 	_update_minimap()
+	# Check exit portal
+	if player_near_exit and Input.is_action_just_pressed("ui_down"):
+		player_near_exit = false
+		_go_next_level()
+		return
 	if not level_complete:
 		elapsed_time += delta
 		var mins := int(elapsed_time) / 60
@@ -203,7 +135,7 @@ func _make_background() -> void:
 	add_child(cl)
 
 	var bg := ColorRect.new()
-	bg.color    = BG_COLOR
+	bg.color    = level.get("bg_color", BG_COLOR)
 	bg.size     = Vector2(1280, 720)
 	bg.position = Vector2.ZERO
 	cl.add_child(bg)
@@ -905,8 +837,12 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 	coin.queue_free()
 	score += 1
 	if score >= total_coins:
-		score_label.text = "🎉  All %d collected! Level complete!" % total_coins
 		level_complete = true
+		if current_level < LevelData.total_levels():
+			score_label.text = "🎉  Complete! Go to the EXIT portal for next level!"
+			_spawn_exit_portal()
+		else:
+			score_label.text = "🏆  ALL LEVELS COMPLETE! You win!"
 	else:
 		score_label.text = "⭐  %d / %d" % [score, total_coins]
 
@@ -927,6 +863,100 @@ func _spawn_coin_sparkle(pos: Vector2) -> void:
 		tw.tween_property(spark, "modulate:a", 0.0, 0.3)
 		tw.set_parallel(false)
 		tw.tween_callback(spark.queue_free)
+
+# ── Exit portal (next level) ─────────────────────────────────────────────────
+func _spawn_exit_portal() -> void:
+	# Place near player spawn on ground
+	var exit_pos := Vector2(640, 660)
+	next_portal = Area2D.new()
+	next_portal.position = exit_pos
+	next_portal.monitoring = true
+
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(50, 70)
+	cs.shape = rect
+	next_portal.add_child(cs)
+
+	# Big glowing portal
+	var glow := Polygon2D.new()
+	var gpts := PackedVector2Array()
+	for i in 16:
+		var a := i * TAU / 16.0
+		gpts.append(Vector2(cos(a) * 30, sin(a) * 40))
+	glow.polygon = gpts
+	glow.color = Color(0.2, 1.0, 0.4, 0.3)
+	next_portal.add_child(glow)
+
+	var body := Polygon2D.new()
+	var bpts := PackedVector2Array()
+	for i in 16:
+		var a := i * TAU / 16.0
+		bpts.append(Vector2(cos(a) * 20, sin(a) * 32))
+	body.polygon = bpts
+	body.color = Color(0.2, 1.0, 0.5, 0.7)
+	next_portal.add_child(body)
+
+	var inner := Polygon2D.new()
+	var ipts := PackedVector2Array()
+	for i in 12:
+		var a := i * TAU / 12.0
+		ipts.append(Vector2(cos(a) * 10, sin(a) * 18))
+	inner.polygon = ipts
+	inner.color = Color(1, 1, 1, 0.3)
+	next_portal.add_child(inner)
+
+	# "NEXT LEVEL" label
+	var lbl := Label.new()
+	lbl.text = "↓ NEXT"
+	lbl.position = Vector2(-24, -58)
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_color_override("font_color", Color(0.2, 1.0, 0.5))
+	next_portal.add_child(lbl)
+
+	next_portal.body_entered.connect(_on_exit_portal_entered)
+	add_child(next_portal)
+
+	# Pulse animation
+	var tw := create_tween().set_loops()
+	tw.tween_property(glow, "modulate:a", 0.4, 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(glow, "modulate:a", 1.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+	var spin := create_tween().set_loops()
+	spin.tween_property(inner, "rotation", TAU, 2.5)
+
+var player_near_exit := false
+
+func _on_exit_portal_entered(body: Node2D) -> void:
+	if body == player_node:
+		player_near_exit = true
+
+func _go_next_level() -> void:
+	current_level += 1
+	# Remove everything except the root
+	for child in get_children():
+		child.queue_free()
+
+	# Reset state
+	score = 0
+	total_coins = 0
+	elapsed_time = 0.0
+	level_complete = false
+	bullets.clear()
+	crumble_bodies.clear()
+	disappear_bodies.clear()
+	portal_pairs.clear()
+	player_in_portals.clear()
+	portal_cooldown = 0.0
+	player_node = null
+	next_portal = null
+	player_near_exit = false
+
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	_load_level(current_level)
+	_build_world()
 
 # ── Enemies (patrol) ─────────────────────────────────────────────────────────
 func _make_enemies() -> void:
@@ -1354,6 +1384,14 @@ func _make_hud() -> void:
 	var cl := CanvasLayer.new()
 	cl.layer = 10
 	add_child(cl)
+
+	# Level name
+	level_label          = Label.new()
+	level_label.text     = level.get("name", "Level %d" % current_level)
+	level_label.position = Vector2(480, 16)
+	level_label.add_theme_font_size_override("font_size", 20)
+	level_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9, 0.7))
+	cl.add_child(level_label)
 
 	score_label          = Label.new()
 	score_label.text     = "⭐  0 / %d" % total_coins
