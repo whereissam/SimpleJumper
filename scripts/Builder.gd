@@ -47,21 +47,20 @@ static func make_walls(w: Node2D, wall_data: Array) -> void:
 		cs.shape = rs
 		sb.add_child(cs)
 
-		# Tile wall with brick sprites
-		var tile_h := 18.0 * 3.0
-		var num_v := maxi(int(float(wd[3]) / tile_h), 1)
-		var num_h := maxi(int(float(wd[2]) / tile_h), 1)
+		# Scale bricks to fit wall width
+		var wall_scale : float = float(wd[2]) / 18.0
+		var brick_size : float = 18.0 * wall_scale
+		var num_v := maxi(int(float(wd[3]) / brick_size), 1)
 		for row in num_v:
-			for col in num_h:
-				var s := Sprite2D.new()
-				s.texture = load(Sprites.BRICK)
-				s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-				s.scale = Vector2(3, 3)
-				s.position = Vector2(
-					-float(wd[2]) * 0.5 + tile_h * 0.5 + col * tile_h,
-					-float(wd[3]) * 0.5 + tile_h * 0.5 + row * tile_h
-				)
-				sb.add_child(s)
+			var s := Sprite2D.new()
+			s.texture = load(Sprites.BRICK)
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(wall_scale, wall_scale)
+			s.position = Vector2(
+				0,
+				-float(wd[3]) * 0.5 + brick_size * 0.5 + row * brick_size
+			)
+			sb.add_child(s)
 
 		w.add_child(sb)
 
@@ -80,8 +79,10 @@ static func _create_static_platform(w: Node2D, pd: Array) -> StaticBody2D:
 	cs.shape = rs
 	sb.add_child(cs)
 
-	# Tile with grass sprites
-	var tile_w := 18.0 * 3.0  # 54px
+	# Scale sprites to match collision height exactly
+	var plat_h : float = pd[3]
+	var sprite_scale : float = plat_h / 18.0  # 18px is raw tile size
+	var tile_w : float = 18.0 * sprite_scale
 	var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
 	for i in num_tiles:
 		var s := Sprite2D.new()
@@ -94,7 +95,7 @@ static func _create_static_platform(w: Node2D, pd: Array) -> StaticBody2D:
 			s.texture = load(Sprites.GRASS_RIGHT)
 		else:
 			s.texture = load(Sprites.GRASS_TOP)
-		s.scale = Vector2(3, 3)
+		s.scale = Vector2(sprite_scale, sprite_scale)
 		s.position = Vector2(
 			-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
 			0
@@ -116,15 +117,17 @@ static func make_moving_platforms(w: Node2D, data: Array) -> void:
 		cs.shape = rs
 		ab.add_child(cs)
 
-		# Use wood plank sprites for moving platforms
-		var tile_w := 18.0 * 3.0
+		# Scale sprites to match collision height
+		var mp_h : float = mp[3]
+		var mp_scale : float = mp_h / 18.0
+		var tile_w : float = 18.0 * mp_scale
 		var num_tiles := maxi(int(float(mp[2]) / tile_w), 1)
 		for i in num_tiles:
 			var s := Sprite2D.new()
 			s.texture = load(Sprites.WOOD_PLANK)
 			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(3, 3)
-			s.modulate = Color(0.8, 0.6, 1.0)  # Purple tint to distinguish
+			s.scale = Vector2(mp_scale, mp_scale)
+			s.modulate = Color(0.8, 0.6, 1.0)
 			s.position = Vector2(
 				-float(mp[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
 				0
@@ -168,14 +171,16 @@ static func make_crumble_platforms(w: Node2D, data: Array) -> Array:
 		cs.shape = rs
 		sb.add_child(cs)
 
-		# Crate sprites for crumbling platforms
-		var tile_w := 18.0 * 3.0
+		# Scale crate sprites to match collision
+		var cd_h : float = cd[3]
+		var cd_scale : float = cd_h / 18.0
+		var tile_w : float = 18.0 * cd_scale
 		var num_tiles := maxi(int(float(cd[2]) / tile_w), 1)
 		for i in num_tiles:
 			var s := Sprite2D.new()
 			s.texture = load(Sprites.CRATE)
 			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(3, 3)
+			s.scale = Vector2(cd_scale, cd_scale)
 			s.position = Vector2(
 				-float(cd[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
 				0

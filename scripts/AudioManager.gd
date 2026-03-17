@@ -42,9 +42,12 @@ var _players : Array = []
 const MAX_PLAYERS := 12  # Max simultaneous sounds
 
 func _ready() -> void:
-	# Preload all sounds
+	# Preload all sounds (skip missing files gracefully)
 	for key in SFX:
-		_cache[key] = load(SFX[key])
+		if ResourceLoader.exists(SFX[key]):
+			_cache[key] = load(SFX[key])
+		else:
+			push_warning("AudioManager: missing sound file: " + SFX[key])
 
 	# Create a pool of AudioStreamPlayers
 	for i in MAX_PLAYERS:
