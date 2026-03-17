@@ -526,22 +526,35 @@ func _spawn_coin_sparkle(pos: Vector2) -> void:
 
 func _kill_enemy(enemy: Area2D) -> void:
 	var pos := enemy.global_position
-	for i in 6:
+
+	# Squash animation then destroy
+	var anim : Node = enemy.get_node_or_null("Anim")
+	if anim:
+		var tw := get_tree().create_tween()
+		tw.tween_property(anim, "scale", Vector2(3.5, 0.3), 0.1)
+		tw.tween_callback(_spawn_enemy_death_particles.bind(pos))
+		tw.tween_callback(enemy.queue_free)
+	else:
+		_spawn_enemy_death_particles(pos)
+		enemy.queue_free()
+
+func _spawn_enemy_death_particles(pos: Vector2) -> void:
+	for i in 8:
 		var p := ColorRect.new()
 		p.size  = Vector2(5, 5)
 		p.color = Colors.ENEMY_CLR
-		p.position = pos + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+		p.position = pos + Vector2(randf_range(-15, 15), randf_range(-10, 10))
 		p.z_index = 5
 		add_child(p)
 
+		var angle := i * TAU / 8.0
+		var target := pos + Vector2(cos(angle) * 35, sin(angle) * 35 - 20)
 		var tw := get_tree().create_tween()
 		tw.set_parallel(true)
-		tw.tween_property(p, "position:y", p.position.y - randf_range(20, 50), 0.4)
+		tw.tween_property(p, "position", target, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.tween_property(p, "modulate:a", 0.0, 0.4)
 		tw.set_parallel(false)
 		tw.tween_callback(p.queue_free)
-
-	enemy.queue_free()
 
 func _spawn_crumble_particles(pos: Vector2, w: float) -> void:
 	for i in 8:

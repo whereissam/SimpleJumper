@@ -1,4 +1,5 @@
 extends CharacterBody2D
+const Sprites = preload("res://scripts/Sprites.gd")
 
 # ── Movement ─────────────────────────────────────────────────────────────────
 const SPEED         := 295.0
@@ -54,6 +55,15 @@ var pupil_r    : ColorRect
 var mouth_rect : ColorRect
 var shield_vis : Polygon2D   # Shield visual indicator
 var cam_zoom   := 1.0        # Camera zoom level
+
+# Squash & stretch
+var was_on_floor   := true
+var fall_speed_max := 0.0    # Track max fall speed for landing impact
+
+# Camera look-ahead
+var look_ahead_x   := 0.0
+const LOOK_AHEAD_DIST := 60.0
+const LOOK_AHEAD_SPEED := 3.0
 
 signal hp_changed(new_hp: int)
 signal player_died
@@ -181,6 +191,12 @@ func _physics_process(delta: float) -> void:
 	# ── Update sprite animation ───────────────────────────────────────────
 	_update_animation()
 
+	# ── Squash & stretch ──────────────────────────────────────────────────
+	_update_squash_stretch(delta)
+
+	# ── Camera look-ahead ─────────────────────────────────────────────────
+	_update_look_ahead(delta)
+
 	# ── Fall respawn ──────────────────────────────────────────────────────
 	if position.y > 920.0:
 		take_damage(1)
@@ -242,14 +258,14 @@ func grant_speed_boost(duration: float) -> void:
 	speed_boost = duration
 
 func camera_shake(intensity: float = 4.0, duration: float = 0.2) -> void:
-	var cam : Node = get_node_or_null("Camera2D")
+	var cam := get_node_or_null("Camera2D") as Camera2D
 	if not cam:
 		return
 	var tw := get_tree().create_tween()
 	var steps := int(duration / 0.03)
 	for i in steps:
-		var offset := Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
-		tw.tween_property(cam, "offset", offset, 0.03)
+		var shake_offset := Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
+		tw.tween_property(cam, "offset", shake_offset, 0.03)
 	tw.tween_property(cam, "offset", Vector2.ZERO, 0.03)
 
 func set_checkpoint(pos: Vector2) -> void:
@@ -283,6 +299,48 @@ func _update_animation() -> void:
 		asp.play("run" + suffix)
 	else:
 		asp.play("idle" + suffix)
+
+# ── Squash & stretch ─────────────────────────────────────────────────────────
+func _update_squash_stretch(delta: float) -> void:
+	var anim : Node = get_node_or_null("Anim")
+	if not anim:
+		return
+
+	# Track fall speed for landing impact
+	if not is_on_floor():
+		fall_speed_max = maxf(fall_speed_max, velocity.y)
+
+	# Landing: squash
+	if is_on_floor() and not was_on_floor:
+		var impact := clampf(fall_speed_max / 600.0, 0.0, 1.0)
+		if impact > 0.15:
+			var squash_x := 1.0 + impact * 0.4  # Wider
+			var squash_y := 1.0 - impact * 0.3  # Shorter
+			anim.scale = anim.scale * Vector2(squash_x, squash_y)
+			var tw := get_tree().create_tween()
+			tw.tween_property(anim, "scale", Sprites.SCALE_CHAR, 0.15).set_trans(Tween.TRANS_ELASTIC)
+			if impact > 0.3:
+				Audio.play("land", -8.0)
+				_spawn_jump_dust()
+		fall_speed_max = 0.0
+
+	# Jump: stretch
+	if not is_on_floor() and was_on_floor and velocity.y < -100:
+		anim.scale = Sprites.SCALE_CHAR * Vector2(0.8, 1.25)
+		var tw := get_tree().create_tween()
+		tw.tween_property(anim, "scale", Sprites.SCALE_CHAR, 0.2).set_trans(Tween.TRANS_QUAD)
+
+	was_on_floor = is_on_floor()
+
+# ── Camera look-ahead ────────────────────────────────────────────────────────
+func _update_look_ahead(delta: float) -> void:
+	var cam : Node = get_node_or_null("Camera2D")
+	if not cam:
+		return
+	var target_x := facing * LOOK_AHEAD_DIST
+	look_ahead_x = move_toward(look_ahead_x, target_x, LOOK_AHEAD_SPEED * delta * 60.0)
+	# Don't override shake offset -- add look-ahead to x only
+	cam.position = Vector2(look_ahead_x, -15)  # Slight upward offset too
 
 # ── Particle effects ────────────────────────────────────────────────────────
 func _spawn_jump_dust() -> void:
