@@ -28,7 +28,7 @@ static func make_background(w: Node2D, level_data: Dictionary) -> void:
 
 	# Parallax layer 1: far mountains (moves slowly)
 	var parallax := ParallaxBackground.new()
-	parallax.z_index = -5
+	# ParallaxBackground doesn't support z_index; add it early so it renders behind
 	w.add_child(parallax)
 
 	var far_layer := ParallaxLayer.new()

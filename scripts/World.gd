@@ -266,7 +266,7 @@ func _physics_process(delta: float) -> void:
 	# Wind zones (push player when overlapping)
 	for child in get_children():
 		if child is Area2D and child.has_meta("wind_zone"):
-			var wpos := child.global_position
+			var wpos : Vector2 = child.global_position
 			var px := player_node.global_position.x
 			var py := player_node.global_position.y
 			# Check rough overlap
