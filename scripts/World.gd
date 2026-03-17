@@ -32,6 +32,7 @@ var boss_data      : Array
 var keys_collected := 0
 var boss_node      : Area2D
 var key_label      : Label
+var shield_icon    : Sprite2D
 
 # -- State ---------------------------------------------------------------------
 var score          := 0
@@ -142,6 +143,7 @@ func _build_world() -> void:
 	hp_container = hud["hp_container"]
 	timer_label  = hud["timer_label"]
 	shield_label = hud["shield_label"]
+	shield_icon  = hud["shield_icon"]
 	level_label  = hud["level_label"]
 
 	# Key counter (if level has keys)
@@ -402,16 +404,13 @@ func _physics_process(delta: float) -> void:
 					c.disabled = not is_on
 			var fill_node : Node = sb.get_node_or_null("Fill")
 			if fill_node:
-				(fill_node as ColorRect).color = Colors.DISAPPEAR_ON if is_on else Colors.DISAPPEAR_OFF
-			var border_node : Node = sb.get_node_or_null("Border")
-			if border_node:
-				border_node.visible = is_on
+				fill_node.modulate.a = 1.0 if is_on else 0.2
 
 		# Warning blink before disappearing
 		if is_on and timer < 0.5:
 			var blink_fill : Node = sb.get_node_or_null("Fill")
 			if blink_fill:
-				(blink_fill as ColorRect).color = Colors.DISAPPEAR_ON if int(timer * 8) % 2 == 0 else Colors.DISAPPEAR_OFF
+				blink_fill.modulate.a = 1.0 if int(timer * 8) % 2 == 0 else 0.3
 
 # -- Pause input is handled by a child node that always processes (see _ready)
 
@@ -676,7 +675,10 @@ func _on_hp_changed(new_hp: int) -> void:
 				(heart as Sprite2D).modulate = Color.WHITE if i < new_hp else Color(0.3, 0.3, 0.3, 0.4)
 
 func _on_shield_changed(has: bool) -> void:
-	shield_label.text = "🛡 SHIELD" if has else ""
+	shield_label.text = "SHIELD" if has else ""
+	shield_label.visible = has
+	if shield_icon:
+		shield_icon.visible = has
 
 func _on_player_died() -> void:
 	score = 0

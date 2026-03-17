@@ -329,20 +329,24 @@ static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
 		cs.shape = rs
 		sb.add_child(cs)
 
-		var fill       := ColorRect.new()
-		fill.name      = "Fill"
-		fill.size      = Vector2(dd[2], dd[3])
-		fill.position  = Vector2(-dd[2] * 0.5, -dd[3] * 0.5)
-		fill.color     = Colors.DISAPPEAR_ON
-		sb.add_child(fill)
-
-		var border     := ColorRect.new()
-		border.name    = "Border"
-		border.size    = Vector2(dd[2] + 4, dd[3] + 4)
-		border.position = Vector2(-dd[2] * 0.5 - 2, -dd[3] * 0.5 - 2)
-		border.color   = Color(0.3, 0.75, 0.85, 0.25)
-		border.z_index = -1
-		sb.add_child(border)
+		# Tiled sprites with cyan tint (disappearing visual)
+		var plat_h : float = dd[3]
+		var dscale : float = plat_h / 18.0
+		var dtile_w : float = 18.0 * dscale
+		var dnum := maxi(int(float(dd[2]) / dtile_w), 1)
+		var fill_container := Node2D.new()
+		fill_container.name = "Fill"
+		for i in dnum:
+			var s := Sprite2D.new()
+			s.texture = load(Sprites.GRASS_TOP)
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(dscale, dscale)
+			s.modulate = Color(0.4, 0.9, 1.0)  # Cyan tint
+			s.position = Vector2(
+				-float(dd[2]) * 0.5 + dtile_w * 0.5 + i * dtile_w, 0
+			)
+			fill_container.add_child(s)
+		sb.add_child(fill_container)
 
 		w.add_child(sb)
 		disappear_bodies.append(sb)
@@ -780,26 +784,21 @@ static func make_shooters(w: Node2D, data: Array) -> void:
 		sb.set_meta("shoot_dir", float(sd[4]))
 		sb.set_meta("fire_timer", float(sd[2]) * 0.5)
 
-		var body := ColorRect.new()
-		body.size = Vector2(24, 24)
-		body.position = Vector2(-12, -12)
-		body.color = Color(0.5, 0.15, 0.15)
-		sb.add_child(body)
+		# Use Kenney red character sprite as turret
+		var turret_tex := Sprites.ENEMY_IDLE_R if sd[4] > 0 else Sprites.ENEMY_IDLE_L
+		var turret := Sprite2D.new()
+		turret.texture = load(turret_tex)
+		turret.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		turret.scale = Sprites.SCALE_CHAR
+		turret.modulate = Color(1.0, 0.5, 0.5)  # Lighter red tint
+		sb.add_child(turret)
 
+		# Barrel indicator
 		var barrel := ColorRect.new()
-		barrel.size = Vector2(14, 8)
-		if sd[4] > 0:
-			barrel.position = Vector2(10, -4)
-		else:
-			barrel.position = Vector2(-24, -4)
-		barrel.color = Color(0.65, 0.2, 0.2)
+		barrel.size = Vector2(12, 4)
+		barrel.position = Vector2(8, -2) if sd[4] > 0 else Vector2(-20, -2)
+		barrel.color = Color(0.8, 0.2, 0.1)
 		sb.add_child(barrel)
-
-		var eye := ColorRect.new()
-		eye.size = Vector2(8, 4)
-		eye.position = Vector2(-4, -6)
-		eye.color = Color(1.0, 0.3, 0.1)
-		sb.add_child(eye)
 
 		w.add_child(sb)
 
@@ -818,14 +817,13 @@ static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bul
 	cs.shape = circle
 	area.add_child(cs)
 
-	var poly := Polygon2D.new()
-	var pts := PackedVector2Array()
-	for i in 8:
-		var a := i * TAU / 8.0
-		pts.append(Vector2(cos(a) * 5, sin(a) * 5))
-	poly.polygon = pts
-	poly.color = Colors.BULLET_CLR
-	area.add_child(poly)
+	# Small red diamond sprite as bullet
+	var s := Sprite2D.new()
+	s.texture = load(Sprites.DIAMOND)
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	s.scale = Vector2(1.0, 1.0)  # Small
+	s.modulate = Color(1.0, 0.3, 0.2)  # Red tint
+	area.add_child(s)
 
 	area.body_entered.connect(on_bullet_hit.bind(area))
 	w.add_child(area)
@@ -930,11 +928,23 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	hp_label.visible  = false
 	cl.add_child(hp_label)
 
+	# Shield icon (hidden until player has shield)
+	var shield_icon := Sprite2D.new()
+	shield_icon.name = "ShieldIcon"
+	shield_icon.texture = load(Sprites.HEART)
+	shield_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	shield_icon.scale = Vector2(1.5, 1.5)
+	shield_icon.modulate = Color(0.3, 0.9, 1.0)  # Cyan tint for shield
+	shield_icon.position = Vector2(110, 62)
+	shield_icon.visible = false
+	cl.add_child(shield_icon)
+
 	var shield_label := Label.new()
 	shield_label.text     = ""
-	shield_label.position = Vector2(20, 85)
-	shield_label.add_theme_font_size_override("font_size", 18)
+	shield_label.position = Vector2(124, 52)
+	shield_label.add_theme_font_size_override("font_size", 16)
 	shield_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+	shield_label.visible = false
 	cl.add_child(shield_label)
 
 	var timer_label := Label.new()
@@ -957,6 +967,7 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 		"hp_container": hp_container,
 		"timer_label": timer_label,
 		"shield_label": shield_label,
+		"shield_icon": shield_icon,
 		"level_label": level_label,
 		"hud_layer": cl,
 	}

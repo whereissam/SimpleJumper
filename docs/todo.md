@@ -18,12 +18,12 @@
 - [x] One-way platforms, drop-through with Down
 - [x] Moving: wood plank sprite, Crumbling: crate sprite
 - [x] Ice platforms (blue tint), Conveyor belts (orange + arrows)
-- [ ] Disappearing: replace ColorRect with sprite
+- [x] Disappearing: tiled grass sprites with cyan tint, fade on/off
 
 ### Enemies
 - [x] AnimatedSprite2D red character walk cycle + direction flip
 - [x] Squash death animation
-- [ ] Shooter: turret sprite, Bullet: projectile sprite
+- [x] Shooter: Kenney enemy sprite + barrel, Bullet: red diamond sprite
 
 ### Items & Hazards
 - [x] Coins: Kenney coin sprite (24px pickup radius)
@@ -37,9 +37,9 @@
 - [x] Stars on fixed layer
 
 ### HUD
-- [ ] Coin icon next to score
-- [ ] Heart sprites instead of text
-- [ ] Shield icon instead of text
+- [x] Coin icon next to score
+- [x] Heart sprites for HP (modulate dim when lost)
+- [x] Shield icon (cyan tinted heart, shown/hidden with shield state)
 
 ---
 
