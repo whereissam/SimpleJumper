@@ -492,11 +492,12 @@ func _on_trampoline_hit(body: Node2D, trampoline: Area2D) -> void:
 		return
 	player_node.trampoline_bounce()
 	Audio.play("trampoline", -4.0)
-	var pad : Node = trampoline.get_node_or_null("Pad")
-	if pad:
-		var tw := create_tween()
-		tw.tween_property(pad, "position:y", pad.position.y + 6, 0.05)
-		tw.tween_property(pad, "position:y", pad.position.y, 0.15).set_trans(Tween.TRANS_ELASTIC)
+	# Squash the whole trampoline then spring back
+	var orig_scale := trampoline.scale
+	var tw := create_tween()
+	tw.tween_property(trampoline, "scale", Vector2(1.3, 0.4), 0.05)
+	tw.tween_property(trampoline, "scale", Vector2(0.85, 1.3), 0.1).set_trans(Tween.TRANS_ELASTIC)
+	tw.tween_property(trampoline, "scale", orig_scale, 0.15).set_trans(Tween.TRANS_ELASTIC)
 
 func _on_checkpoint_hit(body: Node2D, checkpoint: Area2D) -> void:
 	if body != player_node:
@@ -757,22 +758,43 @@ func _spawn_powerup_effect(pos: Vector2, ptype: String) -> void:
 		tw.tween_callback(p.queue_free)
 
 func _spawn_coin_sparkle(pos: Vector2) -> void:
-	for i in 8:
-		var spark := ColorRect.new()
-		spark.size  = Vector2(3, 3)
-		spark.color = Color(1.0, 0.9, 0.2, 0.9)
-		spark.position = pos
-		spark.z_index = 5
-		add_child(spark)
+	_spawn_burst(pos, Color(1.0, 0.85, 0.1), 12, 80.0, 0.4)
 
-		var angle := i * TAU / 8.0
-		var target := pos + Vector2(cos(angle) * 30, sin(angle) * 30)
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(spark, "position", target, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(spark, "modulate:a", 0.0, 0.3)
-		tw.set_parallel(false)
-		tw.tween_callback(spark.queue_free)
+func _spawn_burst(pos: Vector2, color: Color, amount: int, speed: float, lifetime: float) -> void:
+	var particles := GPUParticles2D.new()
+	particles.position = pos
+	particles.z_index = 10
+	particles.amount = amount
+	particles.lifetime = lifetime
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.emitting = true
+
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, -1, 0)
+	mat.spread = 180.0
+	mat.initial_velocity_min = speed * 0.5
+	mat.initial_velocity_max = speed
+	mat.gravity = Vector3(0, 200, 0)
+	mat.scale_min = 3.0
+	mat.scale_max = 6.0
+	mat.color = color
+
+	# Fade out
+	var gradient := Gradient.new()
+	gradient.set_color(0, color)
+	gradient.set_color(1, Color(color.r, color.g, color.b, 0.0))
+	var grad_tex := GradientTexture1D.new()
+	grad_tex.gradient = gradient
+	mat.color_ramp = grad_tex
+
+	particles.process_material = mat
+	add_child(particles)
+
+	# Auto-free after lifetime
+	var tw := get_tree().create_tween()
+	tw.tween_interval(lifetime + 0.1)
+	tw.tween_callback(particles.queue_free)
 
 func _kill_enemy(enemy: Area2D) -> void:
 	var pos := enemy.global_position
@@ -789,39 +811,10 @@ func _kill_enemy(enemy: Area2D) -> void:
 		enemy.queue_free()
 
 func _spawn_enemy_death_particles(pos: Vector2) -> void:
-	for i in 8:
-		var p := ColorRect.new()
-		p.size  = Vector2(5, 5)
-		p.color = Colors.ENEMY_CLR
-		p.position = pos + Vector2(randf_range(-15, 15), randf_range(-10, 10))
-		p.z_index = 5
-		add_child(p)
+	_spawn_burst(pos, Colors.ENEMY_CLR, 16, 120.0, 0.5)
 
-		var angle := i * TAU / 8.0
-		var target := pos + Vector2(cos(angle) * 35, sin(angle) * 35 - 20)
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(p, "position", target, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(p, "modulate:a", 0.0, 0.4)
-		tw.set_parallel(false)
-		tw.tween_callback(p.queue_free)
-
-func _spawn_crumble_particles(pos: Vector2, w: float) -> void:
-	for i in 8:
-		var p := ColorRect.new()
-		p.size = Vector2(6, 6)
-		p.color = Colors.CRUMBLE_FILL
-		p.position = pos + Vector2(randf_range(-w * 0.4, w * 0.4), 0)
-		p.z_index = 5
-		add_child(p)
-
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(p, "position:y", p.position.y + randf_range(30, 80), 0.5)
-		tw.tween_property(p, "position:x", p.position.x + randf_range(-20, 20), 0.5)
-		tw.tween_property(p, "modulate:a", 0.0, 0.5)
-		tw.set_parallel(false)
-		tw.tween_callback(p.queue_free)
+func _spawn_crumble_particles(pos: Vector2, _w: float) -> void:
+	_spawn_burst(pos, Colors.CRUMBLE_FILL, 10, 60.0, 0.5)
 
 # -- Freeze frame (hit-stop) ---------------------------------------------------
 func _freeze_frame(duration: float) -> void:

@@ -437,6 +437,7 @@ func _update_squash_stretch(delta: float) -> void:
 			if impact > 0.3:
 				Audio.play("land", -8.0)
 				_spawn_jump_dust()
+				_spawn_landing_ring()
 		fall_speed_max = 0.0
 
 	# Jump: stretch
@@ -551,3 +552,23 @@ func _spawn_shield_break() -> void:
 	var tw := get_tree().create_tween()
 	tw.tween_interval(0.6)
 	tw.tween_callback(particles.queue_free)
+
+func _spawn_landing_ring() -> void:
+	# Expanding ring effect at player feet
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in 24:
+		var a := i * TAU / 24.0
+		pts.append(Vector2(cos(a) * 8, sin(a) * 3))
+	ring.polygon = pts
+	ring.color = Color(1, 1, 1, 0.5)
+	ring.position = global_position + Vector2(0, 22)
+	ring.z_index = -1
+	get_parent().add_child(ring)
+
+	var tw := get_tree().create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(5, 3), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.25)
+	tw.set_parallel(false)
+	tw.tween_callback(ring.queue_free)

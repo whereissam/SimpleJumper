@@ -75,9 +75,9 @@
 - [x] Enemy squash on stomp
 - [x] Vignette on low HP
 - [x] Speed lines during dash
-- [ ] Trampoline pad squash on bounce
-- [ ] GPUParticles2D for jump dust, coin sparkle, enemy poof
-- [ ] Landing impact ring
+- [x] Trampoline squash & spring animation on bounce
+- [x] GPUParticles2D for coin sparkle, enemy poof, crumble (reusable _spawn_burst)
+- [x] Landing impact ring (expanding oval at feet on hard landing)
 
 ---
 
