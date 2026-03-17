@@ -125,6 +125,17 @@ static func make_player_animated() -> AnimatedSprite2D:
 	frames.set_animation_loop("fall_left", false)
 	frames.add_frame("fall_left", load(PLAYER_FALL_L))
 
+	# Wall slide (uses jump frame -- sprite will be rotated in Player.gd)
+	frames.add_animation("wall_right")
+	frames.set_animation_speed("wall_right", 1)
+	frames.set_animation_loop("wall_right", false)
+	frames.add_frame("wall_right", load(PLAYER_FALL_R))
+
+	frames.add_animation("wall_left")
+	frames.set_animation_speed("wall_left", 1)
+	frames.set_animation_loop("wall_left", false)
+	frames.add_frame("wall_left", load(PLAYER_FALL_L))
+
 	# Remove the default animation that SpriteFrames creates
 	if frames.has_animation("default"):
 		frames.remove_animation("default")

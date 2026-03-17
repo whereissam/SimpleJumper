@@ -277,18 +277,50 @@ func take_damage(amount: int) -> void:
 	hp_changed.emit(hp)
 	if hp <= 0:
 		hp = max_hp
-		position   = respawn_pos
-		velocity   = Vector2.ZERO
-		jumps_left = MAX_JUMPS
-		invincible = 2.0
 		Audio.play("death", -2.0)
 		has_shield = false
 		speed_boost = 0.0
 		if shield_vis:
 			shield_vis.visible = false
 		shield_changed.emit(false)
-		player_died.emit()
-		hp_changed.emit(hp)
+		# Death animation: spin + shrink + fade, then respawn
+		_play_death_animation()
+
+func _play_death_animation() -> void:
+	# Disable control during death
+	set_physics_process(false)
+	velocity = Vector2.ZERO
+
+	var anim : Node = get_node_or_null("Anim")
+	if anim:
+		# Pop up, spin, shrink, fade
+		var tw := get_tree().create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(self, "position:y", position.y - 80, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(anim, "rotation", TAU * 2, 0.6)
+		tw.tween_property(anim, "scale", Vector2(0.1, 0.1), 0.6)
+		tw.tween_property(anim, "modulate:a", 0.0, 0.5)
+		tw.set_parallel(false)
+		tw.tween_callback(_finish_death)
+	else:
+		_finish_death()
+
+func _finish_death() -> void:
+	# Reset visual state
+	var anim : Node = get_node_or_null("Anim")
+	if anim:
+		anim.rotation = 0.0
+		anim.scale = Sprites.SCALE_CHAR
+		anim.modulate.a = 1.0
+
+	# Respawn
+	position   = respawn_pos
+	velocity   = Vector2.ZERO
+	jumps_left = MAX_JUMPS
+	invincible = 2.0
+	set_physics_process(true)
+	player_died.emit()
+	hp_changed.emit(hp)
 
 func stomp_bounce() -> void:
 	velocity.y = JUMP_VEL * 0.6
@@ -358,21 +390,30 @@ func _update_animation() -> void:
 	var asp := anim as AnimatedSprite2D
 	var suffix := "_right" if facing > 0 else "_left"
 
-	if not is_on_floor():
+	if is_wall_sliding:
+		asp.play("wall" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
+		# Tilt toward the wall
+		asp.rotation = 0.2 if facing > 0 else -0.2
+	elif not is_on_floor():
 		if velocity.y < 0:
 			asp.play("jump" + suffix)
 		else:
 			asp.play("fall" + suffix)
 		asp.scale = Sprites.SCALE_CHAR
+		asp.rotation = 0.0
 	elif is_crouching:
 		asp.play("idle" + suffix)
 		asp.scale = Vector2(Sprites.SCALE_CHAR.x * 1.2, Sprites.SCALE_CHAR.y * 0.55)
+		asp.rotation = 0.0
 	elif absf(velocity.x) > 10.0:
 		asp.play("run" + suffix)
 		asp.scale = Sprites.SCALE_CHAR
+		asp.rotation = 0.0
 	else:
 		asp.play("idle" + suffix)
 		asp.scale = Sprites.SCALE_CHAR
+		asp.rotation = 0.0
 
 # ── Squash & stretch ─────────────────────────────────────────────────────────
 func _update_squash_stretch(delta: float) -> void:

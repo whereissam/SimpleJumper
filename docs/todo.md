@@ -10,8 +10,8 @@
 - [x] AnimatedSprite2D with idle/run/jump/fall (left + right)
 - [x] Squash & stretch on land/jump
 - [x] Crouch visual (squash sprite)
-- [ ] Wall-slide animation frame
-- [ ] Death animation (spin + fade)
+- [x] Wall-slide animation (fall frame + tilt toward wall)
+- [x] Death animation (pop up, spin 2x, shrink, fade, then respawn)
 
 ### Platforms
 - [x] Kenney grass tiles (left/mid/right edges), scale matches collision
