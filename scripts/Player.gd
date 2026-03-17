@@ -32,6 +32,9 @@ var is_dashing     := false
 # Wall jump
 var is_wall_sliding := false
 
+# Drop-through
+var drop_timer     := 0.0
+
 # Health
 var max_hp         := 3
 var hp             := 3
@@ -176,6 +179,22 @@ func _physics_process(delta: float) -> void:
 			jump_buffer = 0.0
 			_spawn_jump_dust()
 			Audio.play("double_jump", -4.0, 1.2)
+
+	# ── Drop through one-way platforms (Down + Jump) ─────────────────────
+	if drop_timer > 0.0:
+		drop_timer -= delta
+		if drop_timer <= 0.0:
+			# Re-enable collision
+			var col : Node = get_node_or_null("CollisionShape2D")
+			if col:
+				(col as CollisionShape2D).disabled = false
+	if Input.is_action_just_pressed("ui_down") and is_on_floor():
+		# Briefly disable player collision to fall through one-way platforms
+		var col : Node = get_node_or_null("CollisionShape2D")
+		if col:
+			(col as CollisionShape2D).disabled = true
+			drop_timer = 0.15
+			position.y += 2  # Nudge down past the platform
 
 	# ── Horizontal movement ───────────────────────────────────────────────
 	var dir := Input.get_axis("ui_left", "ui_right")

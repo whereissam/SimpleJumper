@@ -15,15 +15,16 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_val * 7919 + num * 1301
 
-	var difficulty : float = clampf((num - 1) * 0.1, 0.0, 1.0)
+	# Steeper difficulty curve: Lv1=0.0, Lv3=0.3, Lv5=0.55, Lv8=0.85, Lv11=1.0
+	var difficulty : float = clampf((num - 1) * 0.15, 0.0, 1.0)
 
 	var platforms : Array = []
 	var coins : Array = []
 	var enemies : Array = []
 	var spikes : Array = []
 
-	# Pick a random layout style
-	var style := rng.randi_range(0, 5)
+	# Pick a random layout style (7 styles total)
+	var style := rng.randi_range(0, 6)
 
 	# Ground floor: sometimes full, sometimes with gaps
 	var has_full_ground := rng.randf() > difficulty * 0.5
@@ -149,6 +150,28 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 					platforms.append([fx, fy, maxi(w, 80), 22])
 					coins.append(Vector2(fx, fy - 38))
 
+		6:
+			# VERTICAL CLIMB -- zigzag upward, goal is at the very top
+			var x := rng.randi_range(200, 1000)
+			var y := 600
+			var go_left := rng.randi() % 2 == 0
+			for i in rng.randi_range(12, 20):
+				var w := rng.randi_range(80, 180) - int(difficulty * 40)
+				platforms.append([x, y, maxi(w, 70), 22])
+				coins.append(Vector2(x, y - 38))
+				y -= rng.randi_range(65, 100)
+				if go_left:
+					x -= rng.randi_range(80, 200)
+				else:
+					x += rng.randi_range(80, 200)
+				x = clampi(x, 100, 1180)
+				if x < 200:
+					go_left = false
+				elif x > 1000:
+					go_left = true
+				if y < -400:
+					break
+
 	# -- Step 1: Remove overlapping platforms --
 	# Two platforms overlap if they're within 30px vertically and horizontally overlapping
 	var clean : Array = [platforms[0]]  # Always keep ground
@@ -187,15 +210,15 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		coins.append(Vector2(top_x, top_y - 38))
 
 	# ── Enemies ──────────────────────────────────────────────────────────
-	var num_enemies := 2 + int(difficulty * 5)
+	var num_enemies := 3 + int(difficulty * 8)
 	for i in mini(num_enemies, platforms.size() - 1):
 		var idx := rng.randi_range(1, platforms.size() - 1)
 		var ep : Array = platforms[idx]
-		if ep[2] > 90:
-			enemies.append([ep[0], ep[1] - 22, rng.randi_range(30, int(ep[2] * 0.4)), 25 + int(difficulty * 35)])
+		if ep[2] > 80:
+			enemies.append([ep[0], ep[1] - 22, rng.randi_range(25, int(ep[2] * 0.4)), 30 + int(difficulty * 50)])
 
 	# ── Spikes ───────────────────────────────────────────────────────────
-	var num_spike_groups := 1 + int(difficulty * 4)
+	var num_spike_groups := 2 + int(difficulty * 6)
 	for i in num_spike_groups:
 		if has_full_ground:
 			var sx := rng.randi_range(150, 1130)
@@ -208,7 +231,7 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 
 	# ── Saws ─────────────────────────────────────────────────────────────
 	var saws : Array = []
-	var num_saws := int(difficulty * 3)
+	var num_saws := int(difficulty * 5)
 	for i in num_saws:
 		var sx := rng.randi_range(150, 1130)
 		var sy := rng.randi_range(200, 600)
@@ -312,7 +335,7 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 	var bg : Color = bg_styles[rng.randi_range(0, bg_styles.size() - 1)]
 
 	var diff_names : Array = ["Easy", "Medium", "Hard", "Extreme"]
-	var style_names : Array = ["Zigzag", "Spiral", "Towers", "Scattered", "Staircase", "Islands"]
+	var style_names : Array = ["Zigzag", "Spiral", "Towers", "Scattered", "Staircase", "Islands", "Climb"]
 	var diff_idx := mini(int(difficulty * 3.99), 3)
 
 	return {

@@ -73,10 +73,15 @@ static func _create_static_platform(w: Node2D, pd: Array) -> StaticBody2D:
 	var sb := StaticBody2D.new()
 	sb.position = Vector2(pd[0], pd[1])
 
+	# Ground floor (height > 30) is solid; all other platforms are one-way
+	var is_ground : bool = int(pd[3]) > 30
+
 	var cs := CollisionShape2D.new()
 	var rs := RectangleShape2D.new()
 	rs.size  = Vector2(pd[2], pd[3])
 	cs.shape = rs
+	if not is_ground:
+		cs.one_way_collision = true  # Can jump through from below
 	sb.add_child(cs)
 
 	# Scale sprites to match collision height exactly
@@ -407,7 +412,7 @@ static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
 
 		var cs     := CollisionShape2D.new()
 		var circle := CircleShape2D.new()
-		circle.radius = 14.0
+		circle.radius = 24.0  # Bigger pickup radius
 		cs.shape = circle
 		area.add_child(cs)
 
@@ -540,7 +545,7 @@ static func make_player(w: Node2D) -> CharacterBody2D:
 	cam.position_smoothing_speed   = 7.0
 	cam.limit_left   = -100
 	cam.limit_right  = 1380
-	cam.limit_top    = -50
+	cam.limit_top    = -600  # Allow vertical climb maps
 	cam.limit_bottom = 750
 	p.add_child(cam)
 
@@ -600,7 +605,7 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	cl.add_child(timer_label)
 
 	var hint := Label.new()
-	hint.text     = "← → Move  Space Jump  Shift Dash  ↓ Portal  1 Easy  2 Med  3 Hard  4 Extreme  R Reroll  N/B +/- Lv"
+	hint.text     = "← → Move  Space Jump  Shift Dash  ↓ Drop/Portal  1-4 Difficulty  R Reroll  N/B +/- Lv"
 	hint.position = Vector2(20, 692)
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65, 0.65))
