@@ -181,6 +181,7 @@ func _physics_process(delta: float) -> void:
 				var offset := Vector2(dir * 20, 0)
 				var b := Builder.spawn_bullet(self, child.global_position + offset, dir, spd, _on_bullet_hit)
 				bullets.append(b)
+				Audio.play("shoot", -10.0)
 			child.set_meta("fire_timer", timer)
 
 	# Bullets
@@ -232,6 +233,7 @@ func _physics_process(delta: float) -> void:
 				sb.position.x = sb.get_meta("origin_x")
 				sb.set_meta("respawn_timer", 3.0)
 				_spawn_crumble_particles(Vector2(sb.get_meta("origin_x"), sb.get_meta("origin_y")), sb.get_meta("width"))
+				Audio.play("crumble", -6.0)
 			continue
 
 		if ct < 0.0 and player_node.is_on_floor():
@@ -318,6 +320,7 @@ func _on_trampoline_hit(body: Node2D, trampoline: Area2D) -> void:
 	if body != player_node:
 		return
 	player_node.trampoline_bounce()
+	Audio.play("trampoline", -4.0)
 	var pad : Node = trampoline.get_node_or_null("Pad")
 	if pad:
 		var tw := create_tween()
@@ -331,6 +334,7 @@ func _on_checkpoint_hit(body: Node2D, checkpoint: Area2D) -> void:
 		return
 	checkpoint.set_meta("activated", true)
 	player_node.set_checkpoint(checkpoint.global_position + Vector2(0, -10))
+	Audio.play("checkpoint", -4.0)
 
 	var flag : Node = checkpoint.get_node_or_null("Flag")
 	if flag:
@@ -365,6 +369,7 @@ func _on_powerup_hit(body: Node2D, powerup: Area2D) -> void:
 
 	_spawn_powerup_effect(powerup.global_position, ptype)
 	powerup.queue_free()
+	Audio.play("powerup", -4.0)
 
 func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 	if body != player_node:
@@ -372,11 +377,13 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 	_spawn_coin_sparkle(coin.global_position)
 	coin.queue_free()
 	score += 1
+	Audio.play("coin", -6.0, randf_range(0.9, 1.1))
 	if score >= total_coins:
 		level_complete = true
 		if current_level < LevelData.total_levels():
 			score_label.text = "🎉  Complete! Go to the EXIT portal for next level!"
 			_spawn_exit_portal()
+			Audio.play("level_complete", -2.0)
 		else:
 			score_label.text = "🏆  ALL LEVELS COMPLETE! You win!"
 	else:
@@ -388,6 +395,8 @@ func _on_enemy_hit(body: Node2D, enemy: Area2D) -> void:
 	if player_node.velocity.y > 0 and player_node.global_position.y < enemy.global_position.y - 8:
 		_kill_enemy(enemy)
 		player_node.stomp_bounce()
+		Audio.play("stomp", -4.0)
+		_freeze_frame(0.05)
 	else:
 		player_node.take_damage(1)
 		var knockback_dir : float = sign(player_node.global_position.x - enemy.global_position.x)
@@ -402,6 +411,7 @@ func _on_bullet_hit(body: Node2D, bullet: Area2D) -> void:
 		player_node.velocity.y = -150
 		bullet.queue_free()
 		bullets.erase(bullet)
+		Audio.play("bullet_hit", -6.0)
 
 func _on_portal_body_entered(body: Node2D, portal: Area2D) -> void:
 	if body == player_node and portal not in player_in_portals:
@@ -466,6 +476,7 @@ func _on_player_died() -> void:
 func _teleport_to(target: Vector2) -> void:
 	portal_cooldown = 0.5
 	player_in_portals.clear()
+	Audio.play("portal", -4.0)
 	Portals.spawn_teleport_effect(self, player_node.global_position)
 	player_node.position = target + Vector2(0, -10)
 	player_node.velocity = Vector2.ZERO
@@ -548,3 +559,9 @@ func _spawn_crumble_particles(pos: Vector2, w: float) -> void:
 		tw.tween_property(p, "modulate:a", 0.0, 0.5)
 		tw.set_parallel(false)
 		tw.tween_callback(p.queue_free)
+
+# -- Freeze frame (hit-stop) ---------------------------------------------------
+func _freeze_frame(duration: float) -> void:
+	get_tree().paused = true
+	await get_tree().create_timer(duration, true, false, true).timeout
+	get_tree().paused = false

@@ -107,6 +107,7 @@ func _physics_process(delta: float) -> void:
 		dash_dir    = facing
 		dash_cooldown = DASH_COOLDOWN
 		_spawn_dash_ghost()
+		Audio.play("dash", -6.0)
 
 	if is_dashing:
 		dash_timer -= delta
@@ -151,17 +152,20 @@ func _physics_process(delta: float) -> void:
 			jump_buffer  = 0.0
 			is_wall_sliding = false
 			_spawn_jump_dust()
+			Audio.play("jump", -4.0)
 		elif coyote_timer > 0.0:
 			velocity.y   = JUMP_VEL
 			jumps_left   = MAX_JUMPS - 1
 			coyote_timer = 0.0
 			jump_buffer  = 0.0
 			_spawn_jump_dust()
+			Audio.play("jump", -4.0)
 		elif jumps_left > 0:
 			velocity.y  = AIR_JUMP
 			jumps_left -= 1
 			jump_buffer = 0.0
 			_spawn_jump_dust()
+			Audio.play("double_jump", -4.0, 1.2)
 
 	# ── Horizontal movement ───────────────────────────────────────────────
 	var dir := Input.get_axis("ui_left", "ui_right")
@@ -201,10 +205,13 @@ func take_damage(amount: int) -> void:
 		if shield_vis:
 			shield_vis.visible = false
 		_spawn_shield_break()
+		Audio.play("shield_break", -2.0)
 		return
 	hp -= amount
 	invincible  = 1.5
 	blink_timer = 0.0
+	Audio.play("hit", -2.0)
+	camera_shake(5.0, 0.2)
 	hp_changed.emit(hp)
 	if hp <= 0:
 		hp = max_hp
@@ -212,6 +219,7 @@ func take_damage(amount: int) -> void:
 		velocity   = Vector2.ZERO
 		jumps_left = MAX_JUMPS
 		invincible = 2.0
+		Audio.play("death", -2.0)
 		has_shield = false
 		speed_boost = 0.0
 		if shield_vis:
@@ -222,6 +230,7 @@ func take_damage(amount: int) -> void:
 
 func stomp_bounce() -> void:
 	velocity.y = JUMP_VEL * 0.6
+	camera_shake(3.0, 0.1)
 
 func grant_shield() -> void:
 	has_shield = true
@@ -231,6 +240,17 @@ func grant_shield() -> void:
 
 func grant_speed_boost(duration: float) -> void:
 	speed_boost = duration
+
+func camera_shake(intensity: float = 4.0, duration: float = 0.2) -> void:
+	var cam : Node = get_node_or_null("Camera2D")
+	if not cam:
+		return
+	var tw := get_tree().create_tween()
+	var steps := int(duration / 0.03)
+	for i in steps:
+		var offset := Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
+		tw.tween_property(cam, "offset", offset, 0.03)
+	tw.tween_property(cam, "offset", Vector2.ZERO, 0.03)
 
 func set_checkpoint(pos: Vector2) -> void:
 	respawn_pos = pos

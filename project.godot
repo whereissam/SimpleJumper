@@ -18,6 +18,10 @@ config/name="SimpleJumper"
 run/main_scene="res://scenes/World.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
+[autoload]
+
+Audio="*res://scripts/AudioManager.gd"
+
 [display]
 
 window/size/viewport_width=1280
