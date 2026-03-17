@@ -22,6 +22,8 @@ var coin_positions : Array
 var enemy_data     : Array
 var shooter_data   : Array
 var portal_data    : Array
+var ice_data       : Array
+var conveyor_data  : Array
 
 # -- State ---------------------------------------------------------------------
 var score          := 0
@@ -48,6 +50,7 @@ var seed_label     : Label
 
 var player_in_portals : Array = []
 var player_near_exit  := false
+var pause_menu       : CanvasLayer
 
 # Use a static to pass data between scene reloads
 static var _next_level := 1
@@ -81,12 +84,16 @@ func _load_level(num: int) -> void:
 	enemy_data           = level.get("enemies", [])
 	shooter_data         = level.get("shooters", [])
 	portal_data          = level.get("portals", [])
+	ice_data             = level.get("ice", [])
+	conveyor_data        = level.get("conveyors", [])
 
 func _build_world() -> void:
 	Builder.make_background(self, level)
 	Builder.make_walls(self, wall_data)
 	Builder.make_platforms(self, platform_data)
 	Builder.make_moving_platforms(self, moving_platform_data)
+	Builder.make_ice_platforms(self, ice_data)
+	Builder.make_conveyors(self, conveyor_data)
 	crumble_bodies = Builder.make_crumble_platforms(self, crumble_data)
 	disappear_bodies = Builder.make_disappear_platforms(self, disappear_data)
 	Builder.make_spikes(self, spike_data, _on_hazard_hit)
@@ -114,6 +121,12 @@ func _build_world() -> void:
 	timer_label  = hud["timer_label"]
 	shield_label = hud["shield_label"]
 	level_label  = hud["level_label"]
+
+	# Pause key handler (always processes, even when paused)
+	_setup_pause_handler()
+
+	# Fade in from black
+	_fade_in()
 
 	var mm := Minimap.make_minimap(
 		hud["hud_layer"], platform_data, wall_data,
@@ -145,6 +158,26 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not player_node:
 		return
+
+	# Ice & conveyor platform effects
+	if player_node.is_on_floor():
+		var px := player_node.global_position.x
+		var py := player_node.global_position.y
+		for child in get_children():
+			if child is StaticBody2D:
+				if child.has_meta("ice"):
+					var ix : float = child.position.x
+					var iy : float = child.position.y
+					if absf(px - ix) < 100 and absf(py - iy) < 30:
+						# Reduce friction on ice
+						player_node.velocity.x = move_toward(player_node.velocity.x, 0.0, 30.0 * delta)
+				elif child.has_meta("conveyor"):
+					var cx : float = child.position.x
+					var cy : float = child.position.y
+					if absf(px - cx) < 120 and absf(py - cy) < 30:
+						var cdir : float = child.get_meta("conveyor_dir")
+						var cspd : float = child.get_meta("conveyor_speed")
+						player_node.velocity.x += cdir * cspd * delta
 
 	# Patrol enemies
 	for child in get_children():
@@ -274,8 +307,12 @@ func _physics_process(delta: float) -> void:
 			if blink_fill:
 				(blink_fill as ColorRect).color = Colors.DISAPPEAR_ON if int(timer * 8) % 2 == 0 else Colors.DISAPPEAR_OFF
 
+# -- Pause input is handled by a child node that always processes (see _ready)
+
 # -- Input ---------------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:
+	if get_tree().paused:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var kb := event as InputEventKey
 		match kb.keycode:
@@ -304,7 +341,36 @@ func _unhandled_input(event: InputEvent) -> void:
 func _switch_level(to_level: int) -> void:
 	_next_level = to_level
 	_next_seed  = world_seed
-	get_tree().reload_current_scene()
+	_fade_and_reload()
+
+func _fade_in() -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 1)
+	overlay.size = Vector2(1280, 720)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cl := CanvasLayer.new()
+	cl.layer = 100
+	cl.add_child(overlay)
+	add_child(cl)
+
+	var tw := create_tween()
+	tw.tween_property(overlay, "color:a", 0.0, 0.4)
+	tw.tween_callback(cl.queue_free)
+
+func _fade_and_reload() -> void:
+	# Fade to black then reload
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0)
+	overlay.size = Vector2(1280, 720)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cl := CanvasLayer.new()
+	cl.layer = 100
+	cl.add_child(overlay)
+	add_child(cl)
+
+	var tw := create_tween()
+	tw.tween_property(overlay, "color:a", 1.0, 0.25)
+	tw.tween_callback(get_tree().reload_current_scene)
 
 func _go_next_level() -> void:
 	current_level += 1
@@ -480,6 +546,7 @@ func _teleport_to(target: Vector2) -> void:
 	Portals.spawn_teleport_effect(self, player_node.global_position)
 	player_node.position = target + Vector2(0, -10)
 	player_node.velocity = Vector2.ZERO
+	player_node.invincible = 1.0  # Brief invincibility after teleport
 	Portals.spawn_teleport_effect(self, target + Vector2(0, -10))
 
 # -- Exit portal ---------------------------------------------------------------
@@ -577,4 +644,100 @@ func _spawn_crumble_particles(pos: Vector2, w: float) -> void:
 func _freeze_frame(duration: float) -> void:
 	get_tree().paused = true
 	await get_tree().create_timer(duration, true, false, true).timeout
-	get_tree().paused = false
+	if not pause_menu:  # Don't unpause if user opened menu during freeze
+		get_tree().paused = false
+
+func _setup_pause_handler() -> void:
+	var handler := Node.new()
+	handler.name = "PauseHandler"
+	handler.process_mode = Node.PROCESS_MODE_ALWAYS
+	handler.set_script(load("res://scripts/PauseHandler.gd"))
+	handler.set_meta("world", self)
+	add_child(handler)
+
+# -- Pause menu ----------------------------------------------------------------
+func _toggle_pause_menu() -> void:
+	if pause_menu:
+		pause_menu.queue_free()
+		pause_menu = null
+		get_tree().paused = false
+		return
+
+	get_tree().paused = true
+
+	pause_menu = CanvasLayer.new()
+	pause_menu.layer = 200
+	pause_menu.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(pause_menu)
+
+	# Dark overlay
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.7)
+	overlay.size = Vector2(1280, 720)
+	pause_menu.add_child(overlay)
+
+	# Panel background
+	var panel := ColorRect.new()
+	panel.color = Color(0.1, 0.1, 0.2, 0.95)
+	panel.size = Vector2(500, 480)
+	panel.position = Vector2(390, 120)
+	pause_menu.add_child(panel)
+
+	# Title
+	var title := Label.new()
+	title.text = "PAUSED"
+	title.position = Vector2(555, 135)
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color(1, 0.95, 0.55))
+	pause_menu.add_child(title)
+
+	# Controls list
+	var controls : Array = [
+		["Move", "Arrow Keys / ← →"],
+		["Jump", "Space / Up Arrow"],
+		["Double Jump", "Jump again in air"],
+		["Dash", "Z"],
+		["Crouch", "Hold Down Arrow"],
+		["Drop Through", "Tap Down on platform"],
+		["Wall Slide", "Hold toward wall in air"],
+		["Wall Jump", "Jump while wall sliding"],
+		["Portal", "Down Arrow near portal"],
+		["Zoom", "Scroll Wheel"],
+		["", ""],
+		["Easy Map", "1"],
+		["Medium Map", "2"],
+		["Hard Map", "3"],
+		["Extreme Map", "4"],
+		["Reroll Map", "R"],
+		["Next Level", "N"],
+		["Prev Level", "B"],
+	]
+
+	var y_pos := 185
+	for entry in controls:
+		if entry[0] == "":
+			y_pos += 8
+			continue
+		var action_lbl := Label.new()
+		action_lbl.text = entry[0]
+		action_lbl.position = Vector2(420, y_pos)
+		action_lbl.add_theme_font_size_override("font_size", 16)
+		action_lbl.add_theme_color_override("font_color", Color(0.8, 0.85, 1.0))
+		pause_menu.add_child(action_lbl)
+
+		var key_lbl := Label.new()
+		key_lbl.text = entry[1]
+		key_lbl.position = Vector2(620, y_pos)
+		key_lbl.add_theme_font_size_override("font_size", 16)
+		key_lbl.add_theme_color_override("font_color", Color(1, 0.9, 0.5))
+		pause_menu.add_child(key_lbl)
+
+		y_pos += 22
+
+	# Resume hint
+	var hint := Label.new()
+	hint.text = "Press ESC to resume"
+	hint.position = Vector2(510, y_pos + 15)
+	hint.add_theme_font_size_override("font_size", 18)
+	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.6))
+	pause_menu.add_child(hint)

@@ -196,6 +196,96 @@ static func make_crumble_platforms(w: Node2D, data: Array) -> Array:
 		crumble_bodies.append(sb)
 	return crumble_bodies
 
+# -- Ice Platforms (slippery) --------------------------------------------------
+static func make_ice_platforms(w: Node2D, data: Array) -> void:
+	for pd in data:
+		var sb := StaticBody2D.new()
+		sb.position = Vector2(pd[0], pd[1])
+		sb.set_meta("ice", true)
+
+		var cs := CollisionShape2D.new()
+		var rs := RectangleShape2D.new()
+		rs.size  = Vector2(pd[2], pd[3])
+		cs.shape = rs
+		cs.one_way_collision = true
+		sb.add_child(cs)
+
+		# Light blue tinted platform
+		var plat_h : float = pd[3]
+		var sprite_scale : float = plat_h / 18.0
+		var tile_w : float = 18.0 * sprite_scale
+		var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
+		for i in num_tiles:
+			var s := Sprite2D.new()
+			s.texture = load(Sprites.GRASS_TOP)
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(sprite_scale, sprite_scale)
+			s.modulate = Color(0.6, 0.9, 1.0)  # Ice blue tint
+			s.position = Vector2(
+				-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w, 0
+			)
+			sb.add_child(s)
+
+		# Ice shine particles (decorative)
+		for i in 3:
+			var shine := ColorRect.new()
+			shine.size = Vector2(4, 2)
+			shine.color = Color(1, 1, 1, 0.5)
+			shine.position = Vector2(
+				randf_range(-float(pd[2]) * 0.4, float(pd[2]) * 0.4),
+				-float(pd[3]) * 0.3
+			)
+			sb.add_child(shine)
+
+		w.add_child(sb)
+
+# -- Conveyor Belt Platforms ---------------------------------------------------
+static func make_conveyors(w: Node2D, data: Array) -> void:
+	for pd in data:
+		var sb := StaticBody2D.new()
+		sb.position = Vector2(pd[0], pd[1])
+		sb.set_meta("conveyor", true)
+		sb.set_meta("conveyor_dir", float(pd[4]))
+		sb.set_meta("conveyor_speed", 120.0)
+
+		var cs := CollisionShape2D.new()
+		var rs := RectangleShape2D.new()
+		rs.size  = Vector2(pd[2], pd[3])
+		cs.shape = rs
+		cs.one_way_collision = true
+		sb.add_child(cs)
+
+		# Orange tinted platform
+		var plat_h : float = pd[3]
+		var sprite_scale : float = plat_h / 18.0
+		var tile_w : float = 18.0 * sprite_scale
+		var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
+		for i in num_tiles:
+			var s := Sprite2D.new()
+			s.texture = load(Sprites.GRASS_TOP)
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(sprite_scale, sprite_scale)
+			s.modulate = Color(1.0, 0.7, 0.3)  # Orange conveyor tint
+			s.position = Vector2(
+				-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w, 0
+			)
+			sb.add_child(s)
+
+		# Direction arrows
+		var arrow_dir := ">" if pd[4] > 0 else "<"
+		for i in 3:
+			var lbl := Label.new()
+			lbl.text = arrow_dir
+			lbl.add_theme_font_size_override("font_size", 14)
+			lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+			lbl.position = Vector2(
+				-float(pd[2]) * 0.3 + i * float(pd[2]) * 0.3 - 4,
+				-float(pd[3]) * 0.8
+			)
+			sb.add_child(lbl)
+
+		w.add_child(sb)
+
 # -- Disappearing Platforms ----------------------------------------------------
 static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
 	var disappear_bodies : Array = []
@@ -605,7 +695,7 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	cl.add_child(timer_label)
 
 	var hint := Label.new()
-	hint.text     = "← → Move  Space Jump  Shift Dash  ↓ Drop/Portal  1-4 Difficulty  R Reroll  N/B +/- Lv"
+	hint.text     = "← → Move  Space Jump  Z Dash  ↓ Crouch/Drop/Portal  1-4 Difficulty  R Reroll  N/B +/- Lv"
 	hint.position = Vector2(20, 692)
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65, 0.65))

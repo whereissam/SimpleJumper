@@ -304,6 +304,23 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 			var ptype := "shield" if rng.randi() % 2 == 0 else "speed"
 			powerups.append([pp[0], pp[1] - 32, ptype])
 
+	# ── Ice platforms [x, y, width, height] ──────────────────────────────
+	var ice : Array = []
+	if difficulty > 0.2:
+		for i in rng.randi_range(1, 2 + int(difficulty * 2)):
+			var ix := rng.randi_range(150, 1100)
+			var iy := rng.randi_range(250, 580)
+			ice.append([ix, iy, rng.randi_range(100, 180), 18])
+
+	# ── Conveyor belts [x, y, width, height, direction] ──────────────────
+	var conveyors : Array = []
+	if difficulty > 0.3:
+		for i in rng.randi_range(1, 2 + int(difficulty)):
+			var cx := rng.randi_range(200, 1000)
+			var cy := rng.randi_range(300, 600)
+			var cdir := 1 if rng.randi() % 2 == 0 else -1
+			conveyors.append([cx, cy, rng.randi_range(120, 220), 18, cdir])
+
 	# ── Portals ──────────────────────────────────────────────────────────
 	var portals : Array = []
 	if platforms.size() > 3:
@@ -338,6 +355,41 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 	var style_names : Array = ["Zigzag", "Spiral", "Towers", "Scattered", "Staircase", "Islands", "Climb"]
 	var diff_idx := mini(int(difficulty * 3.99), 3)
 
+	# ── Safe zones: remove hazards near portals and spawn point ──────────
+	var safe_points : Array = [Vector2(640, 630)]  # Player spawn
+	for pd in portals:
+		safe_points.append(Vector2(pd[0], pd[1]))  # Portal entrance
+		safe_points.append(Vector2(pd[2], pd[3]))  # Portal exit
+	for chk in checkpoints:
+		safe_points.append(Vector2(chk[0], chk[1]))
+
+	const SAFE_RADIUS := 80
+	# Filter enemies away from safe zones
+	var safe_enemies : Array = []
+	for e in enemies:
+		var enemy_pos := Vector2(e[0], e[1])
+		var too_close := false
+		for sp in safe_points:
+			if enemy_pos.distance_to(sp) < SAFE_RADIUS:
+				too_close = true
+				break
+		if not too_close:
+			safe_enemies.append(e)
+	enemies = safe_enemies
+
+	# Filter spikes away from safe zones
+	var safe_spikes : Array = []
+	for s in spikes:
+		var spike_pos := Vector2(s[0], s[1])
+		var too_close := false
+		for sp in safe_points:
+			if spike_pos.distance_to(sp) < SAFE_RADIUS:
+				too_close = true
+				break
+		if not too_close:
+			safe_spikes.append(s)
+	spikes = safe_spikes
+
 	return {
 		"name": "Lv.%d  %s  %s  #%d" % [num, diff_names[diff_idx], style_names[style], seed_val],
 		"bg_color": bg,
@@ -355,4 +407,6 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		"enemies": enemies,
 		"shooters": shooters,
 		"portals": portals,
+		"ice": ice,
+		"conveyors": conveyors,
 	}

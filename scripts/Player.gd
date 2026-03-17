@@ -35,6 +35,11 @@ var is_wall_sliding := false
 # Drop-through
 var drop_timer     := 0.0
 
+# Crouch
+var is_crouching   := false
+const CROUCH_HEIGHT := 26.0   # Half of normal 50px
+const STAND_HEIGHT  := 50.0
+
 # Health
 var max_hp         := 3
 var hp             := 3
@@ -180,26 +185,41 @@ func _physics_process(delta: float) -> void:
 			_spawn_jump_dust()
 			Audio.play("double_jump", -4.0, 1.2)
 
-	# ── Drop through one-way platforms (Down + Jump) ─────────────────────
+	# ── Drop through one-way platforms ────────────────────────────────────
 	if drop_timer > 0.0:
 		drop_timer -= delta
 		if drop_timer <= 0.0:
-			# Re-enable collision
 			var col : Node = get_node_or_null("CollisionShape2D")
 			if col:
 				(col as CollisionShape2D).disabled = false
+
+	# ── Crouch (hold Down) ────────────────────────────────────────────────
+	var want_crouch := Input.is_action_pressed("ui_down") and is_on_floor() and not is_dashing
+	if want_crouch and not is_crouching:
+		# Start crouching
+		is_crouching = true
+		_set_hitbox_height(CROUCH_HEIGHT)
+	elif not want_crouch and is_crouching:
+		is_crouching = false
+		_set_hitbox_height(STAND_HEIGHT)
+		# Reset sprite position
+		var anim : Node = get_node_or_null("Anim")
+		if anim:
+			anim.position.y = 0
+
+	# Down tap while crouching = drop through platform
 	if Input.is_action_just_pressed("ui_down") and is_on_floor():
-		# Briefly disable player collision to fall through one-way platforms
 		var col : Node = get_node_or_null("CollisionShape2D")
 		if col:
 			(col as CollisionShape2D).disabled = true
 			drop_timer = 0.15
-			position.y += 2  # Nudge down past the platform
+			position.y += 2
 
-	# ── Horizontal movement ───────────────────────────────────────────────
+	# ── Horizontal movement (slower when crouching) ───────────────────────
+	var move_speed := current_speed * (0.4 if is_crouching else 1.0)
 	var dir := Input.get_axis("ui_left", "ui_right")
 	if dir != 0.0:
-		velocity.x = dir * current_speed
+		velocity.x = dir * move_speed
 		facing = 1 if dir > 0.0 else -1
 		_update_face_direction()
 	else:
@@ -247,6 +267,7 @@ func take_damage(amount: int) -> void:
 	blink_timer = 0.0
 	Audio.play("hit", -2.0)
 	camera_shake(5.0, 0.2)
+	_hit_flash()
 	hp_changed.emit(hp)
 	if hp <= 0:
 		hp = max_hp
@@ -287,6 +308,28 @@ func camera_shake(intensity: float = 4.0, duration: float = 0.2) -> void:
 		tw.tween_property(cam, "offset", shake_offset, 0.03)
 	tw.tween_property(cam, "offset", Vector2.ZERO, 0.03)
 
+func _hit_flash() -> void:
+	# Brief white flash on all sprites
+	var anim : Node = get_node_or_null("Anim")
+	if anim:
+		anim.modulate = Color(10, 10, 10)  # Super bright white
+		var tw := get_tree().create_tween()
+		tw.tween_property(anim, "modulate", Color.WHITE, 0.12)
+
+func _set_hitbox_height(h: float) -> void:
+	var col : Node = get_node_or_null("CollisionShape2D")
+	if not col:
+		return
+	var cs := col as CollisionShape2D
+	var shape := cs.shape as RectangleShape2D
+	shape.size.y = h
+	# Keep feet on ground: shift hitbox up (negative = up)
+	cs.position.y = -(STAND_HEIGHT - h) * 0.5
+	# Shift sprite down to match
+	var anim : Node = get_node_or_null("Anim")
+	if anim:
+		anim.position.y = (STAND_HEIGHT - h) * 0.25
+
 func set_checkpoint(pos: Vector2) -> void:
 	respawn_pos = pos
 
@@ -314,10 +357,16 @@ func _update_animation() -> void:
 			asp.play("jump" + suffix)
 		else:
 			asp.play("fall" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
+	elif is_crouching:
+		asp.play("idle" + suffix)
+		asp.scale = Vector2(Sprites.SCALE_CHAR.x * 1.2, Sprites.SCALE_CHAR.y * 0.55)
 	elif absf(velocity.x) > 10.0:
 		asp.play("run" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
 	else:
 		asp.play("idle" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
 
 # ── Squash & stretch ─────────────────────────────────────────────────────────
 func _update_squash_stretch(delta: float) -> void:
