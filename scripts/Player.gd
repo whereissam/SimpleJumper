@@ -146,6 +146,7 @@ func _physics_process(delta: float) -> void:
 		coyote_timer = maxf(coyote_timer - delta, 0.0)
 
 	# ── Wall slide ────────────────────────────────────────────────────────
+	var was_wall_sliding := is_wall_sliding
 	is_wall_sliding = false
 	if not is_on_floor() and is_on_wall():
 		var dir := Input.get_axis("ui_left", "ui_right")
@@ -153,6 +154,11 @@ func _physics_process(delta: float) -> void:
 			is_wall_sliding = true
 			velocity.y = minf(velocity.y, WALL_SLIDE_SPEED)
 			jumps_left = 1
+	# Wall slide sound
+	if is_wall_sliding and not was_wall_sliding:
+		Audio.play_loop("wall_slide", -14.0)
+	elif not is_wall_sliding and was_wall_sliding:
+		Audio.stop_loop()
 
 	# ── Jump input buffer ─────────────────────────────────────────────────
 	if Input.is_action_just_pressed("ui_accept") \

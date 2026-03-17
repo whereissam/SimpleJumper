@@ -163,6 +163,9 @@ func _build_world() -> void:
 	# Pause key handler (always processes, even when paused)
 	_setup_pause_handler()
 
+	# Start background music
+	Audio.start_music()
+
 	# Fade in from black
 	_fade_in()
 

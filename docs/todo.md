@@ -62,10 +62,10 @@
 - [x] Coin, power-up, shield break, checkpoint, portal, trampoline
 - [x] Enemy stomp, shooter fire, bullet hit, crumble
 - [x] Level complete jingle
-- [ ] Wall slide sound (scraping loop)
-- [ ] Death jingle
-- [ ] Background music loop
-- [ ] Positional audio (AudioStreamPlayer2D)
+- [x] Wall slide sound (looping scrape, starts/stops with wall slide state)
+- [x] Death jingle (phaserDown3)
+- [x] Background music (procedural chiptune square wave, 16-note melody)
+- [x] Positional audio (AudioStreamPlayer2D on saw blades, 300px range)
 
 ---
 

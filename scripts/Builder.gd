@@ -393,6 +393,19 @@ static func make_saw_blades(w: Node2D, data: Array, on_hazard: Callable) -> void
 		var s := Sprites.make_saw_sprite()
 		area.add_child(s)
 
+		# Positional buzz sound
+		var buzz := AudioStreamPlayer2D.new()
+		var buzz_path := "res://assets/audio/impact/impactMetal_light_001.ogg"
+		if ResourceLoader.exists(buzz_path):
+			buzz.stream = load(buzz_path)
+			buzz.volume_db = -18.0
+			buzz.max_distance = 300.0
+			buzz.autoplay = true
+			# Loop the sound
+			if buzz.stream is AudioStreamOggVorbis:
+				(buzz.stream as AudioStreamOggVorbis).loop = true
+			area.add_child(buzz)
+
 		area.body_entered.connect(on_hazard.bind(area))
 		w.add_child(area)
 
