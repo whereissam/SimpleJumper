@@ -92,10 +92,10 @@
 - [x] Safe zones (no enemies near portals/spawn)
 - [x] Post-teleport invincibility
 - [x] Steeper difficulty curve
-- [ ] Moving/jumping enemies
-- [ ] Boss enemy
-- [ ] Wind zones
-- [ ] Collectible keys to unlock exit
+- [x] Jumping enemies (yellow, bounce on timer, medium+ difficulty)
+- [x] Boss enemy (large, HP bar, shoots bullets, hard+ difficulty)
+- [x] Wind zones (push player sideways, visual arrows)
+- [x] Collectible keys to unlock exit (diamond icons, required on medium+)
 
 ---
 

@@ -24,6 +24,14 @@ var shooter_data   : Array
 var portal_data    : Array
 var ice_data       : Array
 var conveyor_data  : Array
+var jumper_data    : Array
+var wind_zone_data : Array
+var key_data       : Array
+var require_keys   := 0
+var boss_data      : Array
+var keys_collected := 0
+var boss_node      : Area2D
+var key_label      : Label
 
 # -- State ---------------------------------------------------------------------
 var score          := 0
@@ -89,6 +97,11 @@ func _load_level(num: int) -> void:
 	portal_data          = level.get("portals", [])
 	ice_data             = level.get("ice", [])
 	conveyor_data        = level.get("conveyors", [])
+	jumper_data          = level.get("jumpers", [])
+	wind_zone_data       = level.get("wind_zones", [])
+	key_data             = level.get("keys", [])
+	require_keys         = level.get("require_keys", 0)
+	boss_data            = level.get("boss", [])
 
 func _build_world() -> void:
 	Builder.make_background(self, level)
@@ -111,7 +124,12 @@ func _build_world() -> void:
 	Builder.make_coins(self, coin_positions, _on_coin_entered)
 
 	Builder.make_enemies(self, enemy_data, _on_enemy_hit)
+	Builder.make_jumpers(self, jumper_data, _on_enemy_hit)
 	Builder.make_shooters(self, shooter_data)
+	Builder.make_wind_zones(self, wind_zone_data)
+	if key_data.size() > 0:
+		Builder.make_keys(self, key_data, _on_key_collected)
+	boss_node = Builder.make_boss(self, boss_data, _on_boss_hit)
 
 	player_node = Builder.make_player(self)
 	player_node.hp_changed.connect(_on_hp_changed)
@@ -125,6 +143,16 @@ func _build_world() -> void:
 	timer_label  = hud["timer_label"]
 	shield_label = hud["shield_label"]
 	level_label  = hud["level_label"]
+
+	# Key counter (if level has keys)
+	if require_keys > 0:
+		key_label = Label.new()
+		key_label.text = "🔑 0 / %d" % require_keys
+		key_label.position = Vector2(20, 108)
+		key_label.add_theme_font_size_override("font_size", 20)
+		key_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
+		hud["hud_layer"].add_child(key_label)
+	keys_collected = 0
 
 	# Vignette overlay (shows on low HP)
 	_create_vignette(hud["hud_layer"])
@@ -215,6 +243,67 @@ func _physics_process(delta: float) -> void:
 				var anim_name := "walk_right" if dir > 0 else "walk_left"
 				if ea.animation != anim_name:
 					ea.play(anim_name)
+
+	# Jumping enemies (patrol + jump on timer)
+	for child in get_children():
+		if child is Area2D and child.has_meta("jumper"):
+			var jt : float = child.get_meta("jump_timer")
+			var vy : float = child.get_meta("jumper_vy")
+			jt -= delta
+			if jt <= 0.0:
+				jt = child.get_meta("jump_interval")
+				vy = -child.get_meta("jump_force")
+			# Apply gravity
+			vy += 800.0 * delta
+			child.position.y += vy * delta
+			child.set_meta("jumper_vy", vy)
+			child.set_meta("jump_timer", jt)
+			# Don't fall below spawn Y (approximate ground)
+			if child.position.y > float(child.get_meta("patrol_center")) + 50:
+				child.position.y = float(child.get_meta("patrol_center")) + 50
+				child.set_meta("jumper_vy", 0.0)
+
+	# Wind zones (push player when overlapping)
+	for child in get_children():
+		if child is Area2D and child.has_meta("wind_zone"):
+			var wpos := child.global_position
+			var px := player_node.global_position.x
+			var py := player_node.global_position.y
+			# Check rough overlap
+			if absf(px - wpos.x) < 160 and absf(py - wpos.y) < 120:
+				var wdir : float = child.get_meta("wind_dir")
+				var wstr : float = child.get_meta("wind_strength")
+				player_node.velocity.x += wdir * wstr * delta
+
+	# Boss behavior
+	if boss_node and is_instance_valid(boss_node):
+		var bspd : float = boss_node.get_meta("boss_speed")
+		var bdir : float = boss_node.get_meta("boss_dir")
+		boss_node.position.x += bdir * bspd * delta
+		if boss_node.position.x > 1050:
+			boss_node.set_meta("boss_dir", -1.0)
+		elif boss_node.position.x < 230:
+			boss_node.set_meta("boss_dir", 1.0)
+		# Boss fire timer
+		var bft : float = boss_node.get_meta("boss_fire_timer")
+		bft -= delta
+		if bft <= 0.0:
+			bft = boss_node.get_meta("boss_fire_interval")
+			# Fire bullet toward player
+			var dir_to_player : float = sign(player_node.global_position.x - boss_node.global_position.x)
+			if dir_to_player == 0:
+				dir_to_player = 1.0
+			var b := Builder.spawn_bullet(self, boss_node.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0, _on_bullet_hit)
+			bullets.append(b)
+			Audio.play("shoot", -8.0)
+		boss_node.set_meta("boss_fire_timer", bft)
+		# Flip animation
+		var boss_anim : Node = boss_node.get_node_or_null("Anim")
+		if boss_anim and boss_anim is AnimatedSprite2D:
+			var ba := boss_anim as AnimatedSprite2D
+			var ban := "walk_right" if bdir > 0 else "walk_left"
+			if ba.animation != ban:
+				ba.play(ban)
 
 	# Shooting enemies
 	for child in get_children():
@@ -438,6 +527,73 @@ func _on_checkpoint_hit(body: Node2D, checkpoint: Area2D) -> void:
 		tw.set_parallel(false)
 		tw.tween_callback(spark.queue_free)
 
+func _on_key_collected(body: Node2D, key_area: Area2D) -> void:
+	if body != player_node:
+		return
+	key_area.queue_free()
+	keys_collected += 1
+	Audio.play("powerup", -4.0, 1.3)
+	if key_label:
+		key_label.text = "🔑 %d / %d" % [keys_collected, require_keys]
+	# Check if level now complete
+	if score >= total_coins and keys_collected >= require_keys and not level_complete:
+		level_complete = true
+		score_label.text = "Complete! Go to EXIT portal!"
+		_spawn_exit_portal()
+		Audio.play("level_complete", -2.0)
+	# Sparkle effect
+	var pos := key_area.global_position
+	for i in 8:
+		var spark := ColorRect.new()
+		spark.size = Vector2(4, 4)
+		spark.color = Color(1.0, 0.85, 0.15, 0.9)
+		spark.position = pos
+		spark.z_index = 5
+		add_child(spark)
+		var angle := i * TAU / 8.0
+		var target := pos + Vector2(cos(angle) * 30, sin(angle) * 30)
+		var tw := get_tree().create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(spark, "position", target, 0.3)
+		tw.tween_property(spark, "modulate:a", 0.0, 0.3)
+		tw.set_parallel(false)
+		tw.tween_callback(spark.queue_free)
+
+func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
+	if body != player_node:
+		return
+	# Stomp from above = damage boss
+	if player_node.velocity.y > 0 and player_node.global_position.y < boss.global_position.y - 20:
+		var hp : int = boss.get_meta("boss_hp") - 1
+		boss.set_meta("boss_hp", hp)
+		player_node.stomp_bounce()
+		Audio.play("stomp", -2.0)
+		_freeze_frame(0.08)
+		player_node.camera_shake(6.0, 0.2)
+		# Update HP bar
+		var bar : Node = boss.get_node_or_null("BarFill")
+		if bar:
+			var max_hp : int = boss.get_meta("boss_max_hp")
+			(bar as ColorRect).size.x = 60.0 * hp / max_hp
+		# Flash boss red
+		var anim : Node = boss.get_node_or_null("Anim")
+		if anim:
+			anim.modulate = Color(10, 0, 0)
+			var tw := get_tree().create_tween()
+			tw.tween_property(anim, "modulate", Color.WHITE, 0.15)
+		if hp <= 0:
+			_kill_enemy(boss)
+			boss_node = null
+			Audio.play("level_complete", -2.0)
+	else:
+		# Side contact = player takes damage
+		player_node.take_damage(1)
+		var knockback_dir : float = sign(player_node.global_position.x - boss.global_position.x)
+		if knockback_dir == 0:
+			knockback_dir = 1
+		player_node.velocity.x = knockback_dir * 350
+		player_node.velocity.y = -250
+
 func _on_powerup_hit(body: Node2D, powerup: Area2D) -> void:
 	if body != player_node:
 		return
@@ -458,14 +614,18 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 	coin.queue_free()
 	score += 1
 	Audio.play("coin", -6.0, randf_range(0.9, 1.1))
-	if score >= total_coins:
+	var all_coins := score >= total_coins
+	var all_keys := keys_collected >= require_keys
+	if all_coins and all_keys:
 		level_complete = true
 		if current_level < LevelData.total_levels():
-			score_label.text = "🎉  Complete! Go to the EXIT portal for next level!"
+			score_label.text = "Complete! Go to EXIT portal!"
 			_spawn_exit_portal()
 			Audio.play("level_complete", -2.0)
 		else:
-			score_label.text = "🏆  ALL LEVELS COMPLETE! You win!"
+			score_label.text = "ALL LEVELS COMPLETE! You win!"
+	elif all_coins and not all_keys:
+		score_label.text = "All coins! Find %d more keys!" % (require_keys - keys_collected)
 	else:
 		score_label.text = "  %d / %d" % [score, total_coins]
 

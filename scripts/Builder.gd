@@ -517,6 +517,198 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 		w.add_child(area)
 
 # -- Coins (Kenney coin sprite) ------------------------------------------------
+# -- Jumping Enemies -----------------------------------------------------------
+static func make_jumpers(w: Node2D, data: Array, on_enemy: Callable) -> void:
+	for jd in data:
+		var area := Area2D.new()
+		area.position = Vector2(jd[0], jd[1])
+		area.set_meta("patrol_center", float(jd[0]))
+		area.set_meta("patrol_range", float(jd[4]))
+		area.set_meta("patrol_speed", float(jd[5]))
+		area.set_meta("direction", 1.0)
+		area.set_meta("jumper", true)
+		area.set_meta("jump_interval", float(jd[2]))
+		area.set_meta("jump_force", float(jd[3]))
+		area.set_meta("jump_timer", float(jd[2]))
+		area.set_meta("jumper_vy", 0.0)
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(30, 30)
+		cs.shape = rect
+		area.add_child(cs)
+
+		# Yellow character (different from red patrol enemies)
+		var anim := AnimatedSprite2D.new()
+		anim.name = "Anim"
+		anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var frames := SpriteFrames.new()
+		frames.add_animation("walk_right")
+		frames.set_animation_speed("walk_right", 6)
+		frames.set_animation_loop("walk_right", true)
+		frames.add_frame("walk_right", load(Sprites.CHAR + "tile_0020.png"))
+		frames.add_frame("walk_right", load(Sprites.CHAR + "tile_0021.png"))
+		frames.add_frame("walk_right", load(Sprites.CHAR + "tile_0022.png"))
+		frames.add_animation("walk_left")
+		frames.set_animation_speed("walk_left", 6)
+		frames.set_animation_loop("walk_left", true)
+		frames.add_frame("walk_left", load(Sprites.CHAR + "tile_0025.png"))
+		frames.add_frame("walk_left", load(Sprites.CHAR + "tile_0026.png"))
+		if frames.has_animation("default"):
+			frames.remove_animation("default")
+		anim.sprite_frames = frames
+		anim.scale = Sprites.SCALE_CHAR
+		anim.play("walk_right")
+		area.add_child(anim)
+
+		area.body_entered.connect(on_enemy.bind(area))
+		w.add_child(area)
+
+# -- Wind Zones ----------------------------------------------------------------
+static func make_wind_zones(w: Node2D, data: Array) -> void:
+	for wd in data:
+		var area := Area2D.new()
+		area.position = Vector2(wd[0], wd[1])
+		area.set_meta("wind_zone", true)
+		area.set_meta("wind_dir", float(wd[4]))
+		area.set_meta("wind_strength", float(wd[5]))
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(wd[2], wd[3])
+		cs.shape = rect
+		area.add_child(cs)
+
+		# Visual: semi-transparent colored zone with arrow indicators
+		var fill := ColorRect.new()
+		fill.size = Vector2(wd[2], wd[3])
+		fill.position = Vector2(-float(wd[2]) * 0.5, -float(wd[3]) * 0.5)
+		fill.color = Color(0.4, 0.7, 1.0, 0.08)
+		area.add_child(fill)
+
+		# Arrow particles showing wind direction
+		var arrow_char := ">" if wd[4] > 0 else "<"
+		for i in 5:
+			var lbl := Label.new()
+			lbl.text = arrow_char + arrow_char
+			lbl.add_theme_font_size_override("font_size", 18)
+			lbl.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0, 0.2))
+			lbl.position = Vector2(
+				randf_range(-float(wd[2]) * 0.4, float(wd[2]) * 0.3),
+				randf_range(-float(wd[3]) * 0.4, float(wd[3]) * 0.3)
+			)
+			area.add_child(lbl)
+
+		w.add_child(area)
+
+# -- Keys (collectible) -------------------------------------------------------
+static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
+	for kd in data:
+		var area := Area2D.new()
+		area.position = Vector2(kd[0], kd[1])
+		area.set_meta("key_item", true)
+
+		var cs := CollisionShape2D.new()
+		var circle := CircleShape2D.new()
+		circle.radius = 20.0
+		cs.shape = circle
+		area.add_child(cs)
+
+		# Key visual: yellow diamond shape
+		var icon := Polygon2D.new()
+		icon.polygon = PackedVector2Array([
+			Vector2(0, -12), Vector2(10, 0), Vector2(0, 12), Vector2(-10, 0),
+		])
+		icon.color = Color(1.0, 0.85, 0.15)
+		area.add_child(icon)
+
+		# Inner dot
+		var dot := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for i in 6:
+			var a := i * TAU / 6.0
+			pts.append(Vector2(cos(a) * 4, sin(a) * 4))
+		dot.polygon = pts
+		dot.color = Color(1.0, 0.95, 0.5)
+		area.add_child(dot)
+
+		# Float animation
+		var ftw := w.create_tween().set_loops()
+		ftw.tween_property(area, "position:y", kd[1] - 6.0, 0.6).set_trans(Tween.TRANS_SINE)
+		ftw.tween_property(area, "position:y", kd[1] + 6.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+		# Glow rotation
+		var spin := w.create_tween().set_loops()
+		spin.tween_property(icon, "rotation", TAU, 3.0)
+
+		area.body_entered.connect(on_key.bind(area))
+		w.add_child(area)
+
+# -- Boss Enemy ----------------------------------------------------------------
+static func make_boss(w: Node2D, data: Array, on_enemy: Callable) -> Area2D:
+	if data.is_empty():
+		return null
+	var area := Area2D.new()
+	area.position = Vector2(data[0], data[1])
+	area.set_meta("boss", true)
+	area.set_meta("boss_hp", int(data[2]))
+	area.set_meta("boss_max_hp", int(data[2]))
+	area.set_meta("boss_speed", float(data[3]))
+	area.set_meta("boss_fire_interval", float(data[4]))
+	area.set_meta("boss_fire_timer", float(data[4]))
+	area.set_meta("boss_dir", 1.0)
+	area.set_meta("patrol_center", float(data[0]))  # For enemy hit detection
+
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(60, 60)
+	cs.shape = rect
+	area.add_child(cs)
+
+	# Big red enemy (scaled up)
+	var anim := AnimatedSprite2D.new()
+	anim.name = "Anim"
+	anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var frames := SpriteFrames.new()
+	frames.add_animation("walk_right")
+	frames.set_animation_speed("walk_right", 4)
+	frames.set_animation_loop("walk_right", true)
+	frames.add_frame("walk_right", load(Sprites.ENEMY_IDLE_R))
+	frames.add_frame("walk_right", load(Sprites.ENEMY_WALK1_R))
+	frames.add_frame("walk_right", load(Sprites.ENEMY_WALK2_R))
+	frames.add_animation("walk_left")
+	frames.set_animation_speed("walk_left", 4)
+	frames.set_animation_loop("walk_left", true)
+	frames.add_frame("walk_left", load(Sprites.ENEMY_IDLE_L))
+	frames.add_frame("walk_left", load(Sprites.ENEMY_WALK1_L))
+	frames.add_frame("walk_left", load(Sprites.ENEMY_WALK2_L))
+	if frames.has_animation("default"):
+		frames.remove_animation("default")
+	anim.sprite_frames = frames
+	anim.scale = Vector2(4.0, 4.0)  # 2x bigger than normal enemies
+	anim.play("walk_right")
+	area.add_child(anim)
+
+	# HP bar above boss
+	var bar_bg := ColorRect.new()
+	bar_bg.name = "BarBg"
+	bar_bg.size = Vector2(60, 6)
+	bar_bg.position = Vector2(-30, -45)
+	bar_bg.color = Color(0.2, 0.2, 0.2, 0.7)
+	area.add_child(bar_bg)
+
+	var bar_fill := ColorRect.new()
+	bar_fill.name = "BarFill"
+	bar_fill.size = Vector2(60, 6)
+	bar_fill.position = Vector2(-30, -45)
+	bar_fill.color = Color(0.9, 0.2, 0.15)
+	area.add_child(bar_fill)
+
+	area.body_entered.connect(on_enemy.bind(area))
+	w.add_child(area)
+	return area
+
+# -- Coins (Kenney coin sprite) ------------------------------------------------
 static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
 	for pos in positions:
 		var area := Area2D.new()

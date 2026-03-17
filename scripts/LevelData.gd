@@ -355,6 +355,44 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 	var style_names : Array = ["Zigzag", "Spiral", "Towers", "Scattered", "Staircase", "Islands", "Climb"]
 	var diff_idx := mini(int(difficulty * 3.99), 3)
 
+	# ── Jumping enemies [x, y, jump_interval, jump_force, patrol_range, speed] ──
+	var jumpers : Array = []
+	if difficulty > 0.2:
+		var num_jumpers := rng.randi_range(1, 2 + int(difficulty * 3))
+		for i in num_jumpers:
+			if platforms.size() > 2:
+				var idx := rng.randi_range(1, platforms.size() - 1)
+				var jp : Array = platforms[idx]
+				if int(jp[2]) > 80:
+					jumpers.append([jp[0], jp[1] - 22, rng.randf_range(1.2, 2.5), rng.randi_range(250, 400), rng.randi_range(30, 60), 35 + int(difficulty * 30)])
+
+	# ── Wind zones [x, y, width, height, direction, strength] ────────────
+	var wind_zones : Array = []
+	if difficulty > 0.3:
+		for i in rng.randi_range(1, 2 + int(difficulty)):
+			var wx := rng.randi_range(200, 1000)
+			var wy := rng.randi_range(200, 550)
+			var wdir := 1 if rng.randi() % 2 == 0 else -1
+			wind_zones.append([wx, wy, rng.randi_range(150, 300), rng.randi_range(100, 200), wdir, rng.randi_range(80, 180)])
+
+	# ── Keys & locked exit (on medium+ difficulty) ───────────────────────
+	var keys : Array = []
+	var require_keys := 0
+	if difficulty > 0.25:
+		require_keys = rng.randi_range(1, 1 + int(difficulty * 2))
+		for i in require_keys:
+			if platforms.size() > 3:
+				var idx := rng.randi_range(1, platforms.size() - 1)
+				var kp : Array = platforms[idx]
+				keys.append([kp[0] + rng.randi_range(-30, 30), kp[1] - 35])
+
+	# ── Boss (on hard+ difficulty, replaces some enemies) ────────────────
+	var boss : Array = []  # [x, y, hp, speed, fire_interval]
+	if difficulty > 0.6:
+		var boss_hp := 3 + int(difficulty * 4)
+		var boss_x := rng.randi_range(400, 900)
+		boss = [boss_x, 650, boss_hp, 40 + int(difficulty * 30), 1.5 - difficulty * 0.5]
+
 	# ── Safe zones: remove hazards near portals and spawn point ──────────
 	var safe_points : Array = [Vector2(640, 630)]  # Player spawn
 	for pd in portals:
@@ -409,4 +447,9 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		"portals": portals,
 		"ice": ice,
 		"conveyors": conveyors,
+		"jumpers": jumpers,
+		"wind_zones": wind_zones,
+		"keys": keys,
+		"require_keys": require_keys,
+		"boss": boss,
 	}
