@@ -80,19 +80,21 @@ func _physics_process(delta: float) -> void:
 	# ── Power-up timers ───────────────────────────────────────────────────
 	if speed_boost > 0.0:
 		speed_boost -= delta
-		if body_rect:
-			body_rect.color = Color(1.0, 0.6, 0.15) if int(speed_boost * 6) % 2 == 0 else Color(0.28, 0.55, 1.00)
-	elif body_rect and body_rect.color != Color(0.28, 0.55, 1.00):
-		body_rect.color = Color(0.28, 0.55, 1.00)
+		var anim_node : Node = get_node_or_null("Anim")
+		if anim_node:
+			anim_node.modulate = Color(1.0, 0.7, 0.3) if int(speed_boost * 6) % 2 == 0 else Color.WHITE
+	else:
+		var anim_node : Node = get_node_or_null("Anim")
+		if anim_node and anim_node.modulate != Color.WHITE:
+			anim_node.modulate = Color.WHITE
 
 	# ── Invincibility blink ───────────────────────────────────────────────
 	if invincible > 0.0:
 		invincible -= delta
 		blink_timer += delta * 20.0
-		if body_rect:
-			body_rect.modulate.a = 0.3 if int(blink_timer) % 2 == 0 else 1.0
-	elif body_rect and body_rect.modulate.a != 1.0:
-		body_rect.modulate.a = 1.0
+		modulate.a = 0.3 if int(blink_timer) % 2 == 0 else 1.0
+	elif modulate.a != 1.0:
+		modulate.a = 1.0
 
 	var current_speed := SPEED * (BOOST_MULT if speed_boost > 0.0 else 1.0)
 
@@ -172,6 +174,9 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# ── Update sprite animation ───────────────────────────────────────────
+	_update_animation()
+
 	# ── Fall respawn ──────────────────────────────────────────────────────
 	if position.y > 920.0:
 		take_damage(1)
@@ -237,16 +242,27 @@ func _wall_on_right() -> bool:
 func _wall_on_left() -> bool:
 	return test_move(transform, Vector2(-1, 0))
 
-# ── Face direction ───────────────────────────────────────────────────────────
+# ── Face direction (kept for compatibility) ───────────────────────────────────
 func _update_face_direction() -> void:
-	if not pupil_l or not pupil_r:
+	pass
+
+# ── Sprite animation state ───────────────────────────────────────────────────
+func _update_animation() -> void:
+	var anim : Node = get_node_or_null("Anim")
+	if not anim or not anim is AnimatedSprite2D:
 		return
-	if facing > 0:
-		pupil_l.position = Vector2(-12 + 3, -14 + 3)
-		pupil_r.position = Vector2(  3 + 3, -14 + 3)
+	var asp := anim as AnimatedSprite2D
+	var suffix := "_right" if facing > 0 else "_left"
+
+	if not is_on_floor():
+		if velocity.y < 0:
+			asp.play("jump" + suffix)
+		else:
+			asp.play("fall" + suffix)
+	elif absf(velocity.x) > 10.0:
+		asp.play("run" + suffix)
 	else:
-		pupil_l.position = Vector2(-12 + 2, -14 + 3)
-		pupil_r.position = Vector2(  3 + 2, -14 + 3)
+		asp.play("idle" + suffix)
 
 # ── Particle effects ────────────────────────────────────────────────────────
 func _spawn_jump_dust() -> void:

@@ -1,10 +1,8 @@
 class_name Builder
 const Colors = preload("res://scripts/Colors.gd")
-# Helper functions that construct level elements and add them to the world node.
-# Each function takes the world node (w) as the first parameter so it can
-# call add_child and create_tween on it.
+const Sprites = preload("res://scripts/Sprites.gd")
 
-# -- Background ----------------------------------------------------------------
+# -- Background (parallax with Kenney tiles) -----------------------------------
 static func make_background(w: Node2D, level_data: Dictionary) -> void:
 	var cl := CanvasLayer.new()
 	cl.layer = -10
@@ -16,12 +14,24 @@ static func make_background(w: Node2D, level_data: Dictionary) -> void:
 	bg.position = Vector2.ZERO
 	cl.add_child(bg)
 
+	# Background tile layer (clouds/mountains)
+	var bg_tiles : Array = [Sprites.BG_SKY_CLOUD, Sprites.BG_SKY_MOUNT]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42
-	for _i in 80:
+	for _i in 12:
+		var s := Sprite2D.new()
+		s.texture = load(bg_tiles[rng.randi_range(0, 1)])
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		s.scale = Vector2(4, 4)
+		s.modulate = Color(1, 1, 1, rng.randf_range(0.08, 0.2))
+		s.position = Vector2(rng.randf_range(0, 1280), rng.randf_range(100, 550))
+		cl.add_child(s)
+
+	# Stars
+	for _i in 50:
 		var star := ColorRect.new()
 		star.size     = Vector2(2, 2)
-		star.color    = Color(1, 1, 1, rng.randf_range(0.15, 0.85))
+		star.color    = Color(1, 1, 1, rng.randf_range(0.15, 0.7))
 		star.position = Vector2(rng.randf_range(0, 1280), rng.randf_range(0, 600))
 		cl.add_child(star)
 
@@ -37,20 +47,30 @@ static func make_walls(w: Node2D, wall_data: Array) -> void:
 		cs.shape = rs
 		sb.add_child(cs)
 
-		var fill       := ColorRect.new()
-		fill.size      = Vector2(wd[2], wd[3])
-		fill.position  = Vector2(-wd[2] * 0.5, -wd[3] * 0.5)
-		fill.color     = Colors.WALL_COLOR
-		sb.add_child(fill)
+		# Tile wall with brick sprites
+		var tile_h := 18.0 * 3.0
+		var num_v := maxi(int(float(wd[3]) / tile_h), 1)
+		var num_h := maxi(int(float(wd[2]) / tile_h), 1)
+		for row in num_v:
+			for col in num_h:
+				var s := Sprite2D.new()
+				s.texture = load(Sprites.BRICK)
+				s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				s.scale = Vector2(3, 3)
+				s.position = Vector2(
+					-float(wd[2]) * 0.5 + tile_h * 0.5 + col * tile_h,
+					-float(wd[3]) * 0.5 + tile_h * 0.5 + row * tile_h
+				)
+				sb.add_child(s)
 
 		w.add_child(sb)
 
-# -- Static Platforms ----------------------------------------------------------
+# -- Static Platforms (Kenney grass tiles) -------------------------------------
 static func make_platforms(w: Node2D, data: Array) -> void:
 	for pd in data:
-		_create_static_platform(w, pd, Colors.PLAT_FILL, Colors.PLAT_TOP)
+		_create_static_platform(w, pd)
 
-static func _create_static_platform(w: Node2D, pd: Array, fill_color: Color, top_color: Color) -> StaticBody2D:
+static func _create_static_platform(w: Node2D, pd: Array) -> StaticBody2D:
 	var sb := StaticBody2D.new()
 	sb.position = Vector2(pd[0], pd[1])
 
@@ -60,17 +80,26 @@ static func _create_static_platform(w: Node2D, pd: Array, fill_color: Color, top
 	cs.shape = rs
 	sb.add_child(cs)
 
-	var fill       := ColorRect.new()
-	fill.size      = Vector2(pd[2], pd[3])
-	fill.position  = Vector2(-pd[2] * 0.5, -pd[3] * 0.5)
-	fill.color     = fill_color
-	sb.add_child(fill)
-
-	var top        := ColorRect.new()
-	top.size       = Vector2(pd[2], 5)
-	top.position   = Vector2(-pd[2] * 0.5, -pd[3] * 0.5)
-	top.color      = top_color
-	sb.add_child(top)
+	# Tile with grass sprites
+	var tile_w := 18.0 * 3.0  # 54px
+	var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
+	for i in num_tiles:
+		var s := Sprite2D.new()
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		if num_tiles == 1:
+			s.texture = load(Sprites.GRASS_TOP)
+		elif i == 0:
+			s.texture = load(Sprites.GRASS_LEFT)
+		elif i == num_tiles - 1:
+			s.texture = load(Sprites.GRASS_RIGHT)
+		else:
+			s.texture = load(Sprites.GRASS_TOP)
+		s.scale = Vector2(3, 3)
+		s.position = Vector2(
+			-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
+			0
+		)
+		sb.add_child(s)
 
 	w.add_child(sb)
 	return sb
@@ -87,17 +116,20 @@ static func make_moving_platforms(w: Node2D, data: Array) -> void:
 		cs.shape = rs
 		ab.add_child(cs)
 
-		var fill       := ColorRect.new()
-		fill.size      = Vector2(mp[2], mp[3])
-		fill.position  = Vector2(-mp[2] * 0.5, -mp[3] * 0.5)
-		fill.color     = Colors.MOVING_FILL
-		ab.add_child(fill)
-
-		var top_bar    := ColorRect.new()
-		top_bar.size   = Vector2(mp[2], 4)
-		top_bar.position = Vector2(-mp[2] * 0.5, -mp[3] * 0.5)
-		top_bar.color  = Colors.MOVING_TOP
-		ab.add_child(top_bar)
+		# Use wood plank sprites for moving platforms
+		var tile_w := 18.0 * 3.0
+		var num_tiles := maxi(int(float(mp[2]) / tile_w), 1)
+		for i in num_tiles:
+			var s := Sprite2D.new()
+			s.texture = load(Sprites.WOOD_PLANK)
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(3, 3)
+			s.modulate = Color(0.8, 0.6, 1.0)  # Purple tint to distinguish
+			s.position = Vector2(
+				-float(mp[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
+				0
+			)
+			ab.add_child(s)
 
 		w.add_child(ab)
 
@@ -136,27 +168,19 @@ static func make_crumble_platforms(w: Node2D, data: Array) -> Array:
 		cs.shape = rs
 		sb.add_child(cs)
 
-		var fill       := ColorRect.new()
-		fill.name      = "Fill"
-		fill.size      = Vector2(cd[2], cd[3])
-		fill.position  = Vector2(-cd[2] * 0.5, -cd[3] * 0.5)
-		fill.color     = Colors.CRUMBLE_FILL
-		sb.add_child(fill)
-
-		var top        := ColorRect.new()
-		top.name       = "Top"
-		top.size       = Vector2(cd[2], 4)
-		top.position   = Vector2(-cd[2] * 0.5, -cd[3] * 0.5)
-		top.color      = Colors.CRUMBLE_TOP
-		sb.add_child(top)
-
-		# Crack lines (decorative)
-		for i in 3:
-			var crack := ColorRect.new()
-			crack.size = Vector2(2, cd[3] * 0.6)
-			crack.position = Vector2(-cd[2] * 0.3 + i * cd[2] * 0.25, -cd[3] * 0.3)
-			crack.color = Color(0.45, 0.38, 0.2, 0.5)
-			sb.add_child(crack)
+		# Crate sprites for crumbling platforms
+		var tile_w := 18.0 * 3.0
+		var num_tiles := maxi(int(float(cd[2]) / tile_w), 1)
+		for i in num_tiles:
+			var s := Sprite2D.new()
+			s.texture = load(Sprites.CRATE)
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.scale = Vector2(3, 3)
+			s.position = Vector2(
+				-float(cd[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
+				0
+			)
+			sb.add_child(s)
 
 		w.add_child(sb)
 		crumble_bodies.append(sb)
@@ -189,7 +213,6 @@ static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
 		fill.color     = Colors.DISAPPEAR_ON
 		sb.add_child(fill)
 
-		# Blinking border
 		var border     := ColorRect.new()
 		border.name    = "Border"
 		border.size    = Vector2(dd[2] + 4, dd[3] + 4)
@@ -202,7 +225,7 @@ static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
 		disappear_bodies.append(sb)
 	return disappear_bodies
 
-# -- Spikes --------------------------------------------------------------------
+# -- Spikes (Kenney spike sprite) ----------------------------------------------
 static func make_spikes(w: Node2D, data: Array, on_hazard: Callable) -> void:
 	for sd in data:
 		var count   : int   = sd[2]
@@ -217,36 +240,20 @@ static func make_spikes(w: Node2D, data: Array, on_hazard: Callable) -> void:
 			var cs := CollisionShape2D.new()
 			var tri := ConvexPolygonShape2D.new()
 			tri.points = PackedVector2Array([
-				Vector2(0, -14),
-				Vector2(-8, 0),
-				Vector2(8, 0),
+				Vector2(0, -14), Vector2(-8, 0), Vector2(8, 0),
 			])
 			cs.shape = tri
 			area.add_child(cs)
 
-			var poly := Polygon2D.new()
-			poly.polygon = PackedVector2Array([
-				Vector2(0, -14),
-				Vector2(-8, 0),
-				Vector2(8, 0),
-			])
-			poly.color = Colors.SPIKE_COLOR
-			area.add_child(poly)
-
-			# Highlight edge
-			var highlight := Polygon2D.new()
-			highlight.polygon = PackedVector2Array([
-				Vector2(0, -14),
-				Vector2(-3, -4),
-				Vector2(3, -4),
-			])
-			highlight.color = Color(1.0, 0.5, 0.3, 0.6)
-			area.add_child(highlight)
+			# Kenney spike sprite
+			var s := Sprites.make_spike_sprite()
+			s.position = Vector2(0, -6)
+			area.add_child(s)
 
 			area.body_entered.connect(on_hazard.bind(area))
 			w.add_child(area)
 
-# -- Saw Blades ----------------------------------------------------------------
+# -- Saw Blades (Kenney saw sprite) --------------------------------------------
 static func make_saw_blades(w: Node2D, data: Array, on_hazard: Callable) -> void:
 	for sd in data:
 		var area := Area2D.new()
@@ -259,32 +266,14 @@ static func make_saw_blades(w: Node2D, data: Array, on_hazard: Callable) -> void
 		cs.shape = circle
 		area.add_child(cs)
 
-		# Outer saw teeth
-		var outer := Polygon2D.new()
-		var pts := PackedVector2Array()
-		var r : float = sd[2]
-		for i in 16:
-			var a := i * TAU / 16.0
-			var rad := r if i % 2 == 0 else r * 0.7
-			pts.append(Vector2(cos(a) * rad, sin(a) * rad))
-		outer.polygon = pts
-		outer.color = Colors.SAW_COLOR
-		area.add_child(outer)
-
-		# Inner circle
-		var inner := Polygon2D.new()
-		var ipts := PackedVector2Array()
-		for i in 12:
-			var a := i * TAU / 12.0
-			ipts.append(Vector2(cos(a) * r * 0.35, sin(a) * r * 0.35))
-		inner.polygon = ipts
-		inner.color = Colors.SAW_INNER
-		area.add_child(inner)
+		# Kenney saw sprite
+		var s := Sprites.make_saw_sprite()
+		area.add_child(s)
 
 		area.body_entered.connect(on_hazard.bind(area))
 		w.add_child(area)
 
-		# Movement + spin
+		# Movement
 		var axis     : String = sd[3]
 		var dist     : float  = sd[4]
 		var spd      : float  = sd[5]
@@ -317,14 +306,12 @@ static func make_trampolines(w: Node2D, data: Array, on_tramp: Callable) -> void
 		cs.shape = rect
 		area.add_child(cs)
 
-		# Base
 		var base := ColorRect.new()
 		base.size = Vector2(40, 12)
 		base.position = Vector2(-20, -6)
 		base.color = Colors.TRAMPOLINE_CLR
 		area.add_child(base)
 
-		# Bouncy pad on top
 		var pad := ColorRect.new()
 		pad.name = "Pad"
 		pad.size = Vector2(44, 5)
@@ -332,7 +319,6 @@ static func make_trampolines(w: Node2D, data: Array, on_tramp: Callable) -> void
 		pad.color = Colors.TRAMPOLINE_PAD
 		area.add_child(pad)
 
-		# Spring coils (decorative)
 		for i in 3:
 			var coil := ColorRect.new()
 			coil.size = Vector2(3, 8)
@@ -357,20 +343,19 @@ static func make_checkpoints(w: Node2D, data: Array, on_check: Callable) -> void
 		cs.shape = rect
 		area.add_child(cs)
 
-		# Flag pole
-		var pole := ColorRect.new()
-		pole.size = Vector2(4, 40)
-		pole.position = Vector2(-2, -30)
-		pole.color = Color(0.5, 0.5, 0.5)
+		# Flag pole sprite
+		var pole := Sprite2D.new()
+		pole.texture = load(Sprites.FLAG_POST)
+		pole.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		pole.scale = Vector2(3, 3)
+		pole.position = Vector2(0, -15)
 		area.add_child(pole)
 
-		# Flag
+		# Flag triangle
 		var flag := Polygon2D.new()
 		flag.name = "Flag"
 		flag.polygon = PackedVector2Array([
-			Vector2(2, -30),
-			Vector2(18, -22),
-			Vector2(2, -14),
+			Vector2(2, -30), Vector2(18, -22), Vector2(2, -14),
 		])
 		flag.color = Colors.CHECKPOINT_CLR
 		area.add_child(flag)
@@ -393,40 +378,12 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 
 		var is_shield : bool = pd[2] == "shield"
 
-		# Outer glow
-		var glow := Polygon2D.new()
-		var gpts := PackedVector2Array()
-		for i in 12:
-			var a := i * TAU / 12.0
-			gpts.append(Vector2(cos(a) * 16, sin(a) * 16))
-		glow.polygon = gpts
-		glow.color = (Colors.SHIELD_CLR if is_shield else Colors.SPEED_CLR) * Color(1, 1, 1, 0.3)
-		area.add_child(glow)
-
-		# Icon
-		var icon := Polygon2D.new()
-		if is_shield:
-			icon.polygon = PackedVector2Array([
-				Vector2(0, -10),
-				Vector2(8, -5),
-				Vector2(8, 3),
-				Vector2(0, 10),
-				Vector2(-8, 3),
-				Vector2(-8, -5),
-			])
-			icon.color = Colors.SHIELD_CLR
-		else:
-			icon.polygon = PackedVector2Array([
-				Vector2(-2, -10),
-				Vector2(5, -2),
-				Vector2(0, -1),
-				Vector2(2, 10),
-				Vector2(-5, 2),
-				Vector2(0, 1),
-			])
-			icon.color = Colors.SPEED_CLR
-
-		area.add_child(icon)
+		# Use heart sprite for shield, diamond for speed
+		var s := Sprite2D.new()
+		s.texture = load(Sprites.HEART if is_shield else Sprites.DIAMOND)
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		s.scale = Sprites.SCALE_TILE
+		area.add_child(s)
 
 		# Float animation
 		var ftw := w.create_tween().set_loops()
@@ -436,7 +393,7 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 		area.body_entered.connect(on_powerup.bind(area))
 		w.add_child(area)
 
-# -- Coins ---------------------------------------------------------------------
+# -- Coins (Kenney coin sprite) ------------------------------------------------
 static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
 	for pos in positions:
 		var area := Area2D.new()
@@ -449,23 +406,9 @@ static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
 		cs.shape = circle
 		area.add_child(cs)
 
-		var poly := Polygon2D.new()
-		var pts  := PackedVector2Array()
-		for i in 12:
-			var a := i * TAU / 12.0 - PI * 0.5
-			pts.append(Vector2(cos(a) * 12.0, sin(a) * 12.0))
-		poly.polygon = pts
-		poly.color   = Colors.COIN_COLOR
-		area.add_child(poly)
-
-		var dot      := Polygon2D.new()
-		var dpts     := PackedVector2Array()
-		for i in 8:
-			var a := i * TAU / 8.0
-			dpts.append(Vector2(cos(a) * 4.0, sin(a) * 4.0))
-		dot.polygon = dpts
-		dot.color   = Color(1.0, 0.95, 0.5)
-		area.add_child(dot)
+		# Kenney coin sprite
+		var s := Sprites.make_coin_sprite()
+		area.add_child(s)
 
 		var float_tw := w.create_tween().set_loops()
 		float_tw.tween_property(area, "position:y", pos.y - 6.0, 0.8).set_trans(Tween.TRANS_SINE)
@@ -474,7 +417,7 @@ static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
 		area.body_entered.connect(on_coin.bind(area))
 		w.add_child(area)
 
-# -- Enemies -------------------------------------------------------------------
+# -- Enemies (Kenney animated red character) -----------------------------------
 static func make_enemies(w: Node2D, data: Array, on_enemy: Callable) -> void:
 	for ed in data:
 		var area := Area2D.new()
@@ -486,27 +429,14 @@ static func make_enemies(w: Node2D, data: Array, on_enemy: Callable) -> void:
 
 		var cs   := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
-		rect.size = Vector2(30, 24)
+		rect.size = Vector2(30, 30)
 		cs.shape  = rect
 		area.add_child(cs)
 
-		var body      := ColorRect.new()
-		body.size     = Vector2(30, 24)
-		body.position = Vector2(-15, -12)
-		body.color    = Colors.ENEMY_CLR
-		area.add_child(body)
-
-		var el      := ColorRect.new()
-		el.size     = Vector2(6, 6)
-		el.position = Vector2(-10, -8)
-		el.color    = Colors.ENEMY_EYE
-		area.add_child(el)
-
-		var er      := ColorRect.new()
-		er.size     = Vector2(6, 6)
-		er.position = Vector2(4, -8)
-		er.color    = Colors.ENEMY_EYE
-		area.add_child(er)
+		# Kenney animated enemy sprite
+		var anim := Sprites.make_enemy_animated()
+		anim.name = "Anim"
+		area.add_child(anim)
 
 		area.body_entered.connect(on_enemy.bind(area))
 		w.add_child(area)
@@ -522,14 +452,12 @@ static func make_shooters(w: Node2D, data: Array) -> void:
 		sb.set_meta("shoot_dir", float(sd[4]))
 		sb.set_meta("fire_timer", float(sd[2]) * 0.5)
 
-		# Body (turret style)
 		var body := ColorRect.new()
 		body.size = Vector2(24, 24)
 		body.position = Vector2(-12, -12)
 		body.color = Color(0.5, 0.15, 0.15)
 		sb.add_child(body)
 
-		# Barrel
 		var barrel := ColorRect.new()
 		barrel.size = Vector2(14, 8)
 		if sd[4] > 0:
@@ -539,7 +467,6 @@ static func make_shooters(w: Node2D, data: Array) -> void:
 		barrel.color = Color(0.65, 0.2, 0.2)
 		sb.add_child(barrel)
 
-		# Eye (menacing)
 		var eye := ColorRect.new()
 		eye.size = Vector2(8, 4)
 		eye.position = Vector2(-4, -6)
@@ -548,7 +475,7 @@ static func make_shooters(w: Node2D, data: Array) -> void:
 
 		w.add_child(sb)
 
-# -- Bullets (spawned dynamically) ---------------------------------------------
+# -- Bullets -------------------------------------------------------------------
 static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bullet_hit: Callable) -> Area2D:
 	var area := Area2D.new()
 	area.position = pos
@@ -563,7 +490,6 @@ static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bul
 	cs.shape = circle
 	area.add_child(cs)
 
-	# Bullet visual
 	var poly := Polygon2D.new()
 	var pts := PackedVector2Array()
 	for i in 8:
@@ -573,21 +499,11 @@ static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bul
 	poly.color = Colors.BULLET_CLR
 	area.add_child(poly)
 
-	# Inner glow
-	var inner := Polygon2D.new()
-	var ipts := PackedVector2Array()
-	for i in 6:
-		var a := i * TAU / 6.0
-		ipts.append(Vector2(cos(a) * 2.5, sin(a) * 2.5))
-	inner.polygon = ipts
-	inner.color = Color(1.0, 0.8, 0.5)
-	area.add_child(inner)
-
 	area.body_entered.connect(on_bullet_hit.bind(area))
 	w.add_child(area)
 	return area
 
-# -- Player --------------------------------------------------------------------
+# -- Player (Kenney animated green character) ----------------------------------
 static func make_player(w: Node2D) -> CharacterBody2D:
 	var p := CharacterBody2D.new()
 	p.position = Vector2(640, 630)
@@ -598,22 +514,12 @@ static func make_player(w: Node2D) -> CharacterBody2D:
 	cs.shape = rs
 	p.add_child(cs)
 
-	var body      := ColorRect.new()
-	body.size     = Vector2(36, 50)
-	body.position = Vector2(-18, -25)
-	body.color    = Colors.PLAYER_CLR
-	p.add_child(body)
+	# Kenney animated player sprite (replaces all ColorRect visuals)
+	var anim := Sprites.make_player_animated()
+	anim.name = "Anim"
+	p.add_child(anim)
 
-	var el := _add_eye(p, Vector2(-12, -14))
-	var er := _add_eye(p, Vector2( 3,  -14))
-
-	var mouth      := ColorRect.new()
-	mouth.size     = Vector2(20, 4)
-	mouth.position = Vector2(-10, 8)
-	mouth.color    = Color(0.1, 0.15, 0.35)
-	p.add_child(mouth)
-
-	# Shield visual (hexagonal outline around player)
+	# Shield visual
 	var shield := Polygon2D.new()
 	var spts := PackedVector2Array()
 	for i in 6:
@@ -635,76 +541,60 @@ static func make_player(w: Node2D) -> CharacterBody2D:
 
 	p.set_script(load("res://scripts/Player.gd"))
 
-	p.body_rect  = body
-	p.eye_l      = el[0]
-	p.eye_r      = er[0]
-	p.pupil_l    = el[1]
-	p.pupil_r    = er[1]
-	p.mouth_rect = mouth
+	# Old ColorRect refs are no longer needed, set to null
+	p.body_rect  = null
+	p.eye_l      = null
+	p.eye_r      = null
+	p.pupil_l    = null
+	p.pupil_r    = null
+	p.mouth_rect = null
 	p.shield_vis = shield
 
 	w.add_child(p)
 	return p
 
-static func _add_eye(parent: Node2D, pos: Vector2) -> Array:
-	var white      := ColorRect.new()
-	white.size     = Vector2(10, 10)
-	white.position = pos
-	white.color    = Color.WHITE
-	parent.add_child(white)
-
-	var pupil      := ColorRect.new()
-	pupil.size     = Vector2(5, 5)
-	pupil.position = pos + Vector2(3, 3)
-	pupil.color    = Color(0.08, 0.08, 0.22)
-	parent.add_child(pupil)
-
-	return [white, pupil]
-
 # -- HUD -----------------------------------------------------------------------
-# Returns a dictionary with {score_label, hp_label, timer_label, shield_label, level_label, hud_layer}
 static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, current_level: int) -> Dictionary:
 	var cl := CanvasLayer.new()
 	cl.layer = 10
 	w.add_child(cl)
 
-	# Level name
-	var level_label          := Label.new()
+	var level_label := Label.new()
 	level_label.text     = level_data.get("name", "Level %d" % current_level)
 	level_label.position = Vector2(480, 16)
 	level_label.add_theme_font_size_override("font_size", 20)
 	level_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9, 0.7))
 	cl.add_child(level_label)
 
-	var score_label          := Label.new()
+	var score_label := Label.new()
 	score_label.text     = "⭐  0 / %d" % total_coins
 	score_label.position = Vector2(20, 16)
 	score_label.add_theme_font_size_override("font_size", 26)
 	score_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
 	cl.add_child(score_label)
 
-	var hp_label          := Label.new()
+	var hp_label := Label.new()
 	hp_label.text     = "❤️ ♥ ♥ ♥ "
 	hp_label.position = Vector2(20, 52)
 	hp_label.add_theme_font_size_override("font_size", 22)
 	hp_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
 	cl.add_child(hp_label)
 
-	var shield_label          := Label.new()
+	var shield_label := Label.new()
 	shield_label.text     = ""
 	shield_label.position = Vector2(20, 82)
 	shield_label.add_theme_font_size_override("font_size", 18)
 	shield_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
 	cl.add_child(shield_label)
 
-	var timer_label          := Label.new()
+	var timer_label := Label.new()
 	timer_label.text     = "⏱  00:00.00"
 	timer_label.position = Vector2(1080, 16)
 	timer_label.add_theme_font_size_override("font_size", 22)
 	timer_label.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	cl.add_child(timer_label)
 
-	var hint      := Label.new()
+	var hint := Label.new()
 	hint.text     = "← → Move  Space Jump  Shift Dash  ↓ Portal  1 Easy  2 Med  3 Hard  4 Extreme  R Reroll  N/B +/- Lv"
 	hint.position = Vector2(20, 692)
 	hint.add_theme_font_size_override("font_size", 16)

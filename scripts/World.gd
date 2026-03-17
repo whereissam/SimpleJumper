@@ -161,6 +161,14 @@ func _physics_process(delta: float) -> void:
 			elif child.position.x < center - prange:
 				child.set_meta("direction", 1.0)
 
+			# Flip enemy animation
+			var enemy_anim : Node = child.get_node_or_null("Anim")
+			if enemy_anim and enemy_anim is AnimatedSprite2D:
+				var ea := enemy_anim as AnimatedSprite2D
+				var anim_name := "walk_right" if dir > 0 else "walk_left"
+				if ea.animation != anim_name:
+					ea.play(anim_name)
+
 	# Shooting enemies
 	for child in get_children():
 		if child is StaticBody2D and child.has_meta("shooter"):
