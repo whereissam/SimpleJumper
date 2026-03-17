@@ -412,49 +412,95 @@ func _update_look_ahead(delta: float) -> void:
 
 # ── Particle effects ────────────────────────────────────────────────────────
 func _spawn_jump_dust() -> void:
-	for i in 6:
-		var dust := ColorRect.new()
-		dust.size  = Vector2(4, 4)
-		dust.color = Color(1, 1, 1, 0.6)
-		dust.position = global_position + Vector2(randf_range(-15, 15), 20)
-		dust.z_index = -1
-		get_parent().add_child(dust)
+	var particles := GPUParticles2D.new()
+	particles.emitting = true
+	particles.one_shot = true
+	particles.amount = 8
+	particles.lifetime = 0.4
+	particles.explosiveness = 0.9
+	particles.z_index = -1
+	particles.position = global_position + Vector2(0, 20)
 
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(dust, "position:y", dust.position.y - randf_range(15, 40), 0.35)
-		tw.tween_property(dust, "modulate:a", 0.0, 0.35)
-		tw.set_parallel(false)
-		tw.tween_callback(dust.queue_free)
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, -1, 0)
+	mat.spread = 45.0
+	mat.initial_velocity_min = 40.0
+	mat.initial_velocity_max = 100.0
+	mat.gravity = Vector3(0, 80, 0)
+	mat.scale_min = 2.0
+	mat.scale_max = 4.0
+	mat.color = Color(1.0, 1.0, 1.0, 0.6)
+	var color_ramp := GradientTexture1D.new()
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1.0, 1.0, 1.0, 0.7))
+	grad.set_color(1, Color(0.8, 0.8, 0.8, 0.0))
+	color_ramp.gradient = grad
+	mat.color_ramp = color_ramp
+	particles.process_material = mat
+
+	get_parent().add_child(particles)
+	var tw := get_tree().create_tween()
+	tw.tween_interval(0.5)
+	tw.tween_callback(particles.queue_free)
 
 func _spawn_dash_ghost() -> void:
-	if not body_rect:
-		return
-	var ghost := ColorRect.new()
-	ghost.size     = Vector2(36, 50)
-	ghost.position = global_position + Vector2(-18, -25)
-	ghost.color    = Color(0.5, 0.7, 1.0, 0.5)
-	ghost.z_index  = -1
-	get_parent().add_child(ghost)
+	var particles := GPUParticles2D.new()
+	particles.emitting = true
+	particles.one_shot = true
+	particles.amount = 12
+	particles.lifetime = 0.35
+	particles.explosiveness = 0.8
+	particles.z_index = -1
+	particles.position = global_position
 
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(-facing, 0, 0)
+	mat.spread = 20.0
+	mat.initial_velocity_min = 30.0
+	mat.initial_velocity_max = 80.0
+	mat.gravity = Vector3(0, 0, 0)
+	mat.scale_min = 3.0
+	mat.scale_max = 6.0
+	var color_ramp := GradientTexture1D.new()
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.5, 0.7, 1.0, 0.6))
+	grad.set_color(1, Color(0.3, 0.5, 1.0, 0.0))
+	color_ramp.gradient = grad
+	mat.color_ramp = color_ramp
+	particles.process_material = mat
+
+	get_parent().add_child(particles)
 	var tw := get_tree().create_tween()
-	tw.tween_property(ghost, "modulate:a", 0.0, 0.3)
-	tw.tween_callback(ghost.queue_free)
+	tw.tween_interval(0.5)
+	tw.tween_callback(particles.queue_free)
 
 func _spawn_shield_break() -> void:
-	for i in 10:
-		var shard := ColorRect.new()
-		shard.size  = Vector2(4, 4)
-		shard.color = Color(0.3, 0.9, 1.0, 0.8)
-		shard.position = global_position + Vector2(randf_range(-20, 20), randf_range(-25, 15))
-		shard.z_index = 5
-		get_parent().add_child(shard)
+	var particles := GPUParticles2D.new()
+	particles.emitting = true
+	particles.one_shot = true
+	particles.amount = 16
+	particles.lifetime = 0.5
+	particles.explosiveness = 1.0
+	particles.z_index = 5
+	particles.position = global_position
 
-		var angle := randf_range(0, TAU)
-		var target := shard.position + Vector2(cos(angle) * 40, sin(angle) * 40)
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(shard, "position", target, 0.4)
-		tw.tween_property(shard, "modulate:a", 0.0, 0.4)
-		tw.set_parallel(false)
-		tw.tween_callback(shard.queue_free)
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, 0, 0)
+	mat.spread = 180.0
+	mat.initial_velocity_min = 60.0
+	mat.initial_velocity_max = 120.0
+	mat.gravity = Vector3(0, 40, 0)
+	mat.scale_min = 2.0
+	mat.scale_max = 5.0
+	var color_ramp := GradientTexture1D.new()
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.3, 0.95, 1.0, 0.9))
+	grad.set_color(1, Color(0.1, 0.7, 0.9, 0.0))
+	color_ramp.gradient = grad
+	mat.color_ramp = color_ramp
+	particles.process_material = mat
+
+	get_parent().add_child(particles)
+	var tw := get_tree().create_tween()
+	tw.tween_interval(0.6)
+	tw.tween_callback(particles.queue_free)

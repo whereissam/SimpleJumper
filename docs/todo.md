@@ -3,190 +3,114 @@
 ## 1. Art -- Kenney's Pixel Platformer Sprites
 
 ### Download
-- [x] Download Kenney Pixel Platformer from https://kenney.nl/assets/pixel-platformer
-- [x] Extract into `assets/kenney_pixel/` folder
+- [x] Download Kenney Pixel Platformer
+- [x] Extract into `assets/kenney_pixel/`
 
 ### Player
-- [x] Replace player ColorRect body with AnimatedSprite2D
-- [x] Add idle, run, jump, fall animation frames (left + right)
-- [x] Remove eye/pupil/mouth ColorRects (sprites handle face)
+- [x] AnimatedSprite2D with idle/run/jump/fall (left + right)
 - [x] Squash & stretch on land/jump
-- [ ] Add wall-slide animation frame
-- [ ] Add dash animation (stretch or ghost trail with sprite)
-- [ ] Add death animation (spin + fade)
+- [x] Crouch visual (squash sprite)
+- [ ] Wall-slide animation frame
+- [ ] Death animation (spin + fade)
 
 ### Platforms
-- [x] Replace ColorRect platforms with tiled Kenney grass sprites (left/mid/right edges)
-- [x] Sprite scale matches collision shape exactly (no invisible blocking)
-- [x] One-way platforms (jump through from below, drop through with Down)
-- [x] Moving platforms: use Kenney wood plank sprite (purple tinted)
-- [x] Crumbling platforms: use Kenney crate sprite
-- [ ] Different tile styles per background theme (grass, cave, sky, etc.)
-- [ ] Disappearing platforms: replace ColorRect with sprite
+- [x] Kenney grass tiles (left/mid/right edges), scale matches collision
+- [x] One-way platforms, drop-through with Down
+- [x] Moving: wood plank sprite, Crumbling: crate sprite
+- [x] Ice platforms (blue tint), Conveyor belts (orange + arrows)
+- [ ] Disappearing: replace ColorRect with sprite
 
 ### Enemies
-- [x] Replace enemy ColorRect with AnimatedSprite2D (red character walk cycle)
-- [x] Enemy animation flips direction based on patrol direction
-- [x] Enemy squash animation on stomp death
-- [ ] Shooter enemy: use turret sprite (kept ColorRect)
-- [ ] Bullet: use small projectile sprite (kept Polygon2D)
+- [x] AnimatedSprite2D red character walk cycle + direction flip
+- [x] Squash death animation
+- [ ] Shooter: turret sprite, Bullet: projectile sprite
 
-### Coins
-- [x] Replace Polygon2D coin with Kenney coin Sprite2D
-- [x] Increased pickup radius (24px)
-- [ ] Collect effect: use Kenney sparkle sprites (kept ColorRect particles)
-
-### Hazards
-- [x] Spikes: use Kenney spike tile sprite
-- [x] Saw blades: use Kenney circular saw sprite with rotation
-- [ ] Trampoline: use spring sprite with squash animation (kept ColorRect)
-
-### Portals
-- [ ] Use Kenney door/portal sprites or keep procedural effect
-- [ ] Exit portal: add glowing animated sprite
-
-### Checkpoints
-- [x] Flag pole: use Kenney wooden post sprite
-- [ ] Replace flag triangle Polygon2D with flag sprite
-
-### Power-ups
-- [x] Shield: use Kenney heart sprite
-- [x] Speed boost: use Kenney diamond sprite
+### Items & Hazards
+- [x] Coins: Kenney coin sprite (24px pickup radius)
+- [x] Spikes: spike sprite, Saws: saw sprite
+- [x] Power-ups: heart (shield), diamond (speed)
+- [x] Checkpoints: wooden post sprite
 
 ### Background
-- [x] Add Kenney cloud/mountain background tiles as decoration layer
-- [x] Stars: kept procedural
-- [ ] Add 2-3 parallax layers for depth
+- [x] Kenney cloud/mountain tiles as decoration
+- [x] Parallax layers (far mountains 0.15x, mid clouds 0.3x)
+- [x] Stars on fixed layer
 
 ### HUD
 - [ ] Coin icon next to score
-- [ ] Heart sprites instead of text hearts
+- [ ] Heart sprites instead of text
 - [ ] Shield icon instead of text
-
-### Infrastructure
-- [x] Created `Sprites.gd` -- centralized sprite path mapping and helper functions
-- [x] `make_player_animated()` -- builds SpriteFrames with all player animations
-- [x] `make_enemy_animated()` -- builds SpriteFrames with enemy walk cycle
-- [x] `TEXTURE_FILTER_NEAREST` set on all sprites for crisp pixel art
-- [x] Sprite scale matches collision (platform_height / 18px)
 
 ---
 
-## 2. Camera -- ProCam2D or Manual Improvements
+## 2. Camera & Screen Effects
 
-### Screen Shake
-- [x] Add camera shake on player damage (intensity: 5px, duration: 0.2s)
-- [x] Add camera shake on enemy stomp (intensity: 3px, duration: 0.1s)
-- [ ] Add camera shake on landing from high fall
-
-### Smooth Camera
-- [x] Add look-ahead: camera leads 60px in the direction player is moving
-- [x] Slight upward offset (-15px) for better visibility below
-- [ ] Smooth zoom transitions when entering different areas
-
-### Screen Effects
-- [ ] Hit flash: brief white overlay (0.05s) when taking damage
-- [x] Freeze frame: 0.05s pause on enemy stomp for impact feel
-- [ ] Screen fade on level transition (fade to black, load, fade in)
+- [x] Camera shake on damage (5px) and stomp (3px)
+- [x] Camera look-ahead (60px in facing direction)
+- [x] Freeze frame on enemy stomp (0.05s)
+- [x] Hit flash (white flash on damage)
+- [x] Screen fade (fade to black on level switch, fade in on start)
+- [x] Vignette pulse on low HP (1 HP = red overlay pulse)
+- [x] Speed lines during dash
 
 ---
 
 ## 3. Sound Effects
 
-### Download
-- [x] Download Kenney digital-audio, impact-sounds, interface-sounds
-- [x] Place audio files in `assets/audio/` folder
-
-### Player Sounds
-- [x] Jump (phaseJump1)
-- [x] Double jump (phaseJump3, higher pitch)
-- [x] Land (footstep_concrete, on hard landing)
-- [x] Dash (phaserUp2)
-- [ ] Wall slide (scraping loop)
-- [x] Take damage (impactPunch_heavy)
-- [x] Death (lowDown)
-- [ ] Respawn (chime)
-
-### World Sounds
-- [x] Coin collect (confirmation_002, random pitch)
-- [x] Power-up pickup (powerUp2)
-- [x] Shield break (glass_004)
-- [x] Checkpoint activate (maximize_006)
-- [x] Portal enter (phaserDown2)
-- [x] Trampoline bounce (pepSound3)
-
-### Enemy Sounds
-- [x] Enemy stomp (impactSoft_heavy)
-- [x] Shooter fire (laser3)
-- [x] Bullet hit (impactGeneric_light)
-
-### Hazard Sounds
-- [ ] Spike hit (needs separate sound from generic hit)
-- [ ] Saw blade (ambient buzz loop when nearby)
-- [x] Crumble platform (impactPlank_medium)
-- [ ] Disappear platform (phase out hum)
-
-### Music
-- [ ] Background music loop (chiptune or ambient, per difficulty tier)
-- [x] Level complete jingle (threeTone1)
-- [ ] Death jingle (short)
-
-### Implementation
-- [x] Create AudioManager autoload singleton
-- [x] Preload all sounds at startup (with graceful fallback)
-- [x] AudioStreamPlayer pool (12 simultaneous sounds)
-- [ ] Use AudioStreamPlayer2D for positional sounds
-- [ ] Volume sliders in pause menu (stretch goal)
+- [x] AudioManager autoload with 12-player pool
+- [x] Jump, double jump, dash, land sounds
+- [x] Coin, power-up, shield break, checkpoint, portal, trampoline
+- [x] Enemy stomp, shooter fire, bullet hit, crumble
+- [x] Level complete jingle
+- [ ] Wall slide sound (scraping loop)
+- [ ] Death jingle
+- [ ] Background music loop
+- [ ] Positional audio (AudioStreamPlayer2D)
 
 ---
 
 ## 4. Game Feel ("Juice")
 
-### Squash & Stretch
-- [x] Player squashes on land (proportional to fall speed)
-- [x] Player stretches on jump
-- [x] Enemies squash flat when stomped (then burst into particles)
-- [ ] Trampoline pad squashes on bounce
-
-### Particles (upgrade from ColorRect to GPUParticles2D)
-- [ ] Jump dust cloud
-- [ ] Dash trail
-- [ ] Coin collect sparkle burst
-- [ ] Enemy death poof
+- [x] Player squash on land, stretch on jump
+- [x] Enemy squash on stomp
+- [x] Vignette on low HP
+- [x] Speed lines during dash
+- [ ] Trampoline pad squash on bounce
+- [ ] GPUParticles2D for jump dust, coin sparkle, enemy poof
 - [ ] Landing impact ring
-- [ ] Speed boost trail behind player
-
-### Screen Effects
-- [ ] Vignette on low HP
-- [ ] Speed lines during dash
-- [ ] Subtle chromatic aberration on damage
 
 ---
 
-## 5. Gameplay Features (added)
+## 5. Gameplay Features
 
-- [x] Drop-through platforms (press Down on one-way platforms)
-- [x] Vertical Climb layout style (zigzag upward to goal)
-- [x] 7 layout styles total (Zigzag, Spiral, Towers, Scattered, Staircase, Islands, Climb)
-- [x] Steeper difficulty curve (more enemies, faster, more hazards)
-- [ ] Moving enemies (not just patrol -- jumping enemies, flying enemies)
-- [ ] Boss enemy at end of hard levels
-- [ ] Conveyor belt platforms
-- [ ] Ice platforms (slippery)
-- [ ] Wind zones (push player sideways)
+- [x] Drop-through platforms
+- [x] Crouch (hold Down, half hitbox, slower movement)
+- [x] Ice platforms (slippery)
+- [x] Conveyor belts (push player)
+- [x] Vertical Climb layout (7 styles total)
+- [x] Pause menu (Escape, shows all controls)
+- [x] Safe zones (no enemies near portals/spawn)
+- [x] Post-teleport invincibility
+- [x] Steeper difficulty curve
+- [ ] Moving/jumping enemies
+- [ ] Boss enemy
+- [ ] Wind zones
 - [ ] Collectible keys to unlock exit
 
 ---
 
-## Priority Order (updated)
+## Done / Remaining
 
-1. ~~**Kenney sprites**~~ DONE
-2. ~~**Sound effects**~~ DONE (core sounds wired)
-3. ~~**Camera shake + freeze frame**~~ DONE
-4. ~~**Squash & stretch**~~ DONE
-5. **Hit flash + screen fade** (quick wins)
-6. **Remaining sprite polish** (shooter, bullet, trampoline, portal, HUD icons)
-7. **Parallax background** (depth)
-8. **GPUParticles2D** (replace ColorRect particles)
-9. **Music** (atmosphere)
-10. **Advanced gameplay** (moving enemies, boss, conveyor, ice, wind)
+**DONE:** Sprites, sounds, camera effects, screen effects, parallax, pause menu, crouch, ice, conveyor, 7 map styles, difficulty scaling
+
+**REMAINING (nice-to-have):**
+- HUD sprite icons
+- Disappearing platform sprite
+- Shooter/bullet sprites
+- GPUParticles2D
+- Background music
+- Wall slide sound
+- Death jingle
+- Advanced enemies (jumping, flying, boss)
+- Wind zones
+- Collectible keys

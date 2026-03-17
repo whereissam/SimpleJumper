@@ -4,36 +4,59 @@ const Sprites = preload("res://scripts/Sprites.gd")
 
 # -- Background (parallax with Kenney tiles) -----------------------------------
 static func make_background(w: Node2D, level_data: Dictionary) -> void:
+	# Solid color background (CanvasLayer so it never moves)
 	var cl := CanvasLayer.new()
 	cl.layer = -10
 	w.add_child(cl)
 
 	var bg := ColorRect.new()
 	bg.color    = level_data.get("bg_color", Colors.BG_COLOR)
-	bg.size     = Vector2(1280, 720)
-	bg.position = Vector2.ZERO
+	bg.size     = Vector2(2560, 1440)
+	bg.position = Vector2(-640, -360)
 	cl.add_child(bg)
 
-	# Background tile layer (clouds/mountains)
-	var bg_tiles : Array = [Sprites.BG_SKY_CLOUD, Sprites.BG_SKY_MOUNT]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42
-	for _i in 12:
-		var s := Sprite2D.new()
-		s.texture = load(bg_tiles[rng.randi_range(0, 1)])
-		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		s.scale = Vector2(4, 4)
-		s.modulate = Color(1, 1, 1, rng.randf_range(0.08, 0.2))
-		s.position = Vector2(rng.randf_range(0, 1280), rng.randf_range(100, 550))
-		cl.add_child(s)
 
-	# Stars
-	for _i in 50:
+	# Stars on fixed background
+	for _i in 60:
 		var star := ColorRect.new()
 		star.size     = Vector2(2, 2)
 		star.color    = Color(1, 1, 1, rng.randf_range(0.15, 0.7))
-		star.position = Vector2(rng.randf_range(0, 1280), rng.randf_range(0, 600))
+		star.position = Vector2(rng.randf_range(0, 1280), rng.randf_range(0, 700))
 		cl.add_child(star)
+
+	# Parallax layer 1: far mountains (moves slowly)
+	var parallax := ParallaxBackground.new()
+	parallax.z_index = -5
+	w.add_child(parallax)
+
+	var far_layer := ParallaxLayer.new()
+	far_layer.motion_scale = Vector2(0.15, 0.1)
+	parallax.add_child(far_layer)
+
+	for _i in 10:
+		var s := Sprite2D.new()
+		s.texture = load(Sprites.BG_SKY_MOUNT)
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		s.scale = Vector2(6, 6)
+		s.modulate = Color(1, 1, 1, 0.12)
+		s.position = Vector2(rng.randf_range(-200, 1500), rng.randf_range(300, 600))
+		far_layer.add_child(s)
+
+	# Parallax layer 2: mid clouds (moves moderately)
+	var mid_layer := ParallaxLayer.new()
+	mid_layer.motion_scale = Vector2(0.3, 0.15)
+	parallax.add_child(mid_layer)
+
+	for _i in 8:
+		var s := Sprite2D.new()
+		s.texture = load(Sprites.BG_SKY_CLOUD)
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		s.scale = Vector2(5, 5)
+		s.modulate = Color(1, 1, 1, rng.randf_range(0.06, 0.15))
+		s.position = Vector2(rng.randf_range(-200, 1500), rng.randf_range(100, 500))
+		mid_layer.add_child(s)
 
 # -- Walls ---------------------------------------------------------------------
 static func make_walls(w: Node2D, wall_data: Array) -> void:
@@ -666,23 +689,45 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	level_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.9, 0.7))
 	cl.add_child(level_label)
 
+	# Coin icon next to score
+	var coin_icon := Sprite2D.new()
+	coin_icon.texture = load(Sprites.COIN)
+	coin_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	coin_icon.scale = Vector2(1.5, 1.5)
+	coin_icon.position = Vector2(34, 30)
+	cl.add_child(coin_icon)
+
 	var score_label := Label.new()
-	score_label.text     = "⭐  0 / %d" % total_coins
-	score_label.position = Vector2(20, 16)
+	score_label.text     = "  0 / %d" % total_coins
+	score_label.position = Vector2(48, 16)
 	score_label.add_theme_font_size_override("font_size", 26)
 	score_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
 	cl.add_child(score_label)
 
+	# Heart icons for HP display
+	var hp_container := HBoxContainer.new()
+	hp_container.name = "HpContainer"
+	hp_container.position = Vector2(20, 52)
+	for i in 3:
+		var heart := Sprite2D.new()
+		heart.name = "Heart%d" % i
+		heart.texture = load(Sprites.HEART)
+		heart.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		heart.scale = Vector2(1.5, 1.5)
+		heart.position = Vector2(i * 30, 0)
+		hp_container.add_child(heart)
+	cl.add_child(hp_container)
+
+	# Keep hp_label for compatibility but hide it (used for updates)
 	var hp_label := Label.new()
-	hp_label.text     = "❤️ ♥ ♥ ♥ "
+	hp_label.text     = ""
 	hp_label.position = Vector2(20, 52)
-	hp_label.add_theme_font_size_override("font_size", 22)
-	hp_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+	hp_label.visible  = false
 	cl.add_child(hp_label)
 
 	var shield_label := Label.new()
 	shield_label.text     = ""
-	shield_label.position = Vector2(20, 82)
+	shield_label.position = Vector2(20, 85)
 	shield_label.add_theme_font_size_override("font_size", 18)
 	shield_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
 	cl.add_child(shield_label)
@@ -704,6 +749,7 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	return {
 		"score_label": score_label,
 		"hp_label": hp_label,
+		"hp_container": hp_container,
 		"timer_label": timer_label,
 		"shield_label": shield_label,
 		"level_label": level_label,

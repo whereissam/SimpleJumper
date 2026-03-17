@@ -42,6 +42,7 @@ var portal_pairs   : Array = []
 var portal_cooldown := 0.0
 var minimap_node   : Control
 var minimap_player : ColorRect
+var hp_container   : Node
 
 var level_label    : Label
 var next_portal    : Area2D
@@ -51,6 +52,8 @@ var seed_label     : Label
 var player_in_portals : Array = []
 var player_near_exit  := false
 var pause_menu       : CanvasLayer
+var vignette_rect    : ColorRect
+var dash_lines_layer : CanvasLayer
 
 # Use a static to pass data between scene reloads
 static var _next_level := 1
@@ -118,9 +121,16 @@ func _build_world() -> void:
 	var hud := Builder.make_hud(self, total_coins, level, current_level)
 	score_label  = hud["score_label"]
 	hp_label     = hud["hp_label"]
+	hp_container = hud["hp_container"]
 	timer_label  = hud["timer_label"]
 	shield_label = hud["shield_label"]
 	level_label  = hud["level_label"]
+
+	# Vignette overlay (shows on low HP)
+	_create_vignette(hud["hud_layer"])
+
+	# Speed lines (shows during dash)
+	_create_dash_lines()
 
 	# Pause key handler (always processes, even when paused)
 	_setup_pause_handler()
@@ -147,6 +157,10 @@ func _process(delta: float) -> void:
 		player_near_exit = false
 		_go_next_level()
 		return
+	# Vignette pulse on low HP
+	_update_vignette()
+	# Speed lines during dash
+	_update_dash_lines()
 	if not level_complete:
 		elapsed_time += delta
 		var mins := int(elapsed_time) / 60
@@ -453,7 +467,7 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 		else:
 			score_label.text = "🏆  ALL LEVELS COMPLETE! You win!"
 	else:
-		score_label.text = "⭐  %d / %d" % [score, total_coins]
+		score_label.text = "  %d / %d" % [score, total_coins]
 
 func _on_enemy_hit(body: Node2D, enemy: Area2D) -> void:
 	if body != player_node:
@@ -492,7 +506,11 @@ func _on_exit_portal_entered(body: Node2D) -> void:
 		player_near_exit = true
 
 func _on_hp_changed(new_hp: int) -> void:
-	hp_label.text = "❤️ " + "♥ ".repeat(new_hp) + "♡ ".repeat(3 - new_hp)
+	if hp_container:
+		for i in 3:
+			var heart : Node = hp_container.get_node_or_null("Heart%d" % i)
+			if heart:
+				(heart as Sprite2D).modulate = Color.WHITE if i < new_hp else Color(0.3, 0.3, 0.3, 0.4)
 
 func _on_shield_changed(has: bool) -> void:
 	shield_label.text = "🛡 SHIELD" if has else ""
@@ -501,7 +519,7 @@ func _on_player_died() -> void:
 	score = 0
 	elapsed_time = 0.0
 	level_complete = false
-	score_label.text = "⭐  0 / %d" % total_coins
+	score_label.text = "  0 / %d" % total_coins
 
 	# Clean up dynamic objects
 	var to_remove : Array = []
@@ -741,3 +759,42 @@ func _toggle_pause_menu() -> void:
 	hint.add_theme_font_size_override("font_size", 18)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.6))
 	pause_menu.add_child(hint)
+
+# -- Vignette (low HP warning) -------------------------------------------------
+func _create_vignette(hud_layer: CanvasLayer) -> void:
+	vignette_rect = ColorRect.new()
+	vignette_rect.size = Vector2(1280, 720)
+	vignette_rect.color = Color(0.8, 0.05, 0.05, 0.0)
+	vignette_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_layer.add_child(vignette_rect)
+
+func _update_vignette() -> void:
+	if not vignette_rect or not player_node:
+		return
+	if player_node.hp <= 1:
+		# Pulse red overlay when 1 HP
+		var pulse := absf(sin(elapsed_time * 3.0)) * 0.2
+		vignette_rect.color.a = pulse
+	else:
+		vignette_rect.color.a = 0.0
+
+# -- Speed lines (dash effect) -------------------------------------------------
+func _create_dash_lines() -> void:
+	dash_lines_layer = CanvasLayer.new()
+	dash_lines_layer.layer = 5
+	dash_lines_layer.visible = false
+	add_child(dash_lines_layer)
+
+	# Create several horizontal speed line rects
+	for i in 12:
+		var line := ColorRect.new()
+		line.size = Vector2(randf_range(80, 200), randf_range(1, 3))
+		line.position = Vector2(randf_range(-50, 1280), randf_range(50, 670))
+		line.color = Color(1, 1, 1, randf_range(0.1, 0.3))
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dash_lines_layer.add_child(line)
+
+func _update_dash_lines() -> void:
+	if not dash_lines_layer or not player_node:
+		return
+	dash_lines_layer.visible = player_node.is_dashing
