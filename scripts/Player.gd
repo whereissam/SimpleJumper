@@ -1,5 +1,5 @@
+class_name Player
 extends CharacterBody2D
-const Sprites = preload("res://scripts/Sprites.gd")
 
 # ── Movement ─────────────────────────────────────────────────────────────────
 const SPEED         := 295.0
@@ -54,13 +54,7 @@ const BOOST_MULT  := 1.6
 # Checkpoint
 var respawn_pos    := Vector2(640, 630)
 
-# Visual nodes (set by World.gd)
-var body_rect  : ColorRect
-var eye_l      : ColorRect
-var eye_r      : ColorRect
-var pupil_l    : ColorRect
-var pupil_r    : ColorRect
-var mouth_rect : ColorRect
+# Visual nodes (set by Builder)
 var shield_vis : Polygon2D   # Shield visual indicator
 var cam_zoom   := 1.0        # Camera zoom level
 
@@ -70,8 +64,17 @@ var fall_speed_max := 0.0    # Track max fall speed for landing impact
 
 # Camera look-ahead
 var look_ahead_x   := 0.0
-const LOOK_AHEAD_DIST := 60.0
+const LOOK_AHEAD_DIST  := 60.0
 const LOOK_AHEAD_SPEED := 3.0
+const FALL_DEATH_Y     := 920.0
+
+# Invincibility durations
+const INVINCIBLE_AFTER_HIT     := 1.5
+const INVINCIBLE_AFTER_SHIELD  := 0.8
+const INVINCIBLE_AFTER_RESPAWN := 2.0
+
+# Crouch movement multiplier
+const CROUCH_SPEED_MULT := 0.4
 
 signal hp_changed(new_hp: int)
 signal player_died
@@ -222,7 +225,7 @@ func _physics_process(delta: float) -> void:
 			position.y += 2
 
 	# ── Horizontal movement (slower when crouching) ───────────────────────
-	var move_speed := current_speed * (0.4 if is_crouching else 1.0)
+	var move_speed := current_speed * (CROUCH_SPEED_MULT if is_crouching else 1.0)
 	var dir := Input.get_axis("ui_left", "ui_right")
 	if dir != 0.0:
 		velocity.x = dir * move_speed
@@ -243,7 +246,7 @@ func _physics_process(delta: float) -> void:
 	_update_look_ahead(delta)
 
 	# ── Fall respawn ──────────────────────────────────────────────────────
-	if position.y > 920.0:
+	if position.y > FALL_DEATH_Y:
 		take_damage(1)
 		position   = respawn_pos
 		velocity   = Vector2.ZERO
@@ -260,7 +263,7 @@ func take_damage(amount: int) -> void:
 		return
 	if has_shield:
 		has_shield = false
-		invincible = 0.8
+		invincible = INVINCIBLE_AFTER_SHIELD
 		blink_timer = 0.0
 		shield_changed.emit(false)
 		if shield_vis:
@@ -269,7 +272,7 @@ func take_damage(amount: int) -> void:
 		Audio.play("shield_break", -2.0)
 		return
 	hp -= amount
-	invincible  = 1.5
+	invincible  = INVINCIBLE_AFTER_HIT
 	blink_timer = 0.0
 	Audio.play("hit", -2.0)
 	camera_shake(5.0, 0.2)
@@ -317,7 +320,7 @@ func _finish_death() -> void:
 	position   = respawn_pos
 	velocity   = Vector2.ZERO
 	jumps_left = MAX_JUMPS
-	invincible = 2.0
+	invincible = INVINCIBLE_AFTER_RESPAWN
 	set_physics_process(true)
 	player_died.emit()
 	hp_changed.emit(hp)

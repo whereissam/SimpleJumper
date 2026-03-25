@@ -5,14 +5,27 @@ const Builder = preload("res://scripts/Builder.gd")
 const Portals = preload("res://scripts/Portals.gd")
 const Minimap = preload("res://scripts/Minimap.gd")
 
+# -- Constants -----------------------------------------------------------------
+const PLAYER_SPAWN      := Vector2(640, 630)
+const FALL_DEATH_Y      := 920.0
+const PORTAL_COOLDOWN   := 0.5
+const VIEWPORT_WIDTH    := 1280
+const VIEWPORT_HEIGHT   := 720
+const HAZARD_BOUNCE     := -250.0
+const ENEMY_KNOCKBACK_X := 250.0
+const ENEMY_KNOCKBACK_Y := -200.0
+const BOSS_KNOCKBACK_X  := 350.0
+const BOSS_STOMP_OFFSET := 20.0
+const ENEMY_STOMP_OFFSET := 8.0
+const SPEED_BOOST_DURATION := 5.0
+const BULLET_BOUNCE_Y   := -150.0
+
 # -- Level data (loaded from LevelData.gd) ------------------------------------
 var current_level  := 1
 var level          : Dictionary
 var platform_data  : Array
 var moving_platform_data : Array
 var wall_data      : Array
-var crumble_data   : Array
-var disappear_data : Array
 var spike_data     : Array
 var saw_data       : Array
 var trampoline_data : Array
@@ -20,61 +33,57 @@ var checkpoint_data : Array
 var powerup_data   : Array
 var coin_positions : Array
 var enemy_data     : Array
-var shooter_data   : Array
 var portal_data    : Array
-var ice_data       : Array
-var conveyor_data  : Array
-var jumper_data    : Array
-var wind_zone_data : Array
 var key_data       : Array
 var require_keys   := 0
-var boss_data      : Array
 var keys_collected := 0
-var boss_node      : Area2D
-var key_label      : Label
-var shield_icon    : Sprite2D
 
-# -- State ---------------------------------------------------------------------
+# -- Typed entity arrays (replace get_children() scanning) ---------------------
+var patrol_enemies  : Array[PatrolEnemy] = []
+var jumping_enemies : Array[JumpingEnemy] = []
+var shooters        : Array[Shooter] = []
+var crumble_bodies  : Array[CrumblePlatform] = []
+var ice_platforms   : Array[IcePlatform] = []
+var conveyors       : Array[ConveyorPlatform] = []
+var wind_zones      : Array[WindZone] = []
+var boss_node       : BossEnemy
+
+# -- HUD nodes -----------------------------------------------------------------
 var score          := 0
 var total_coins    := 0
 var score_label    : Label
 var hp_label       : Label
 var timer_label    : Label
 var shield_label   : Label
-var player_node    : CharacterBody2D
-var elapsed_time   := 0.0
-var level_complete := false
-var bullets        : Array = []
-var crumble_bodies : Array = []
-var disappear_bodies : Array = []
-var portal_pairs   : Array = []
-var portal_cooldown := 0.0
+var key_label      : Label
+var shield_icon    : Sprite2D
+var hp_container   : Node
 var minimap_node   : Control
 var minimap_player : ColorRect
-var hp_container   : Node
+
+# -- State ---------------------------------------------------------------------
+var player_node    : Player
+var elapsed_time   := 0.0
+var level_complete := false
+var portal_pairs   : Array = []
+var portal_cooldown_timer := 0.0
+var player_in_portals : Array = []
+var player_near_exit  := false
 
 var level_label    : Label
 var next_portal    : Area2D
 var world_seed     := 0
-var seed_label     : Label
-
-var player_in_portals : Array = []
-var player_near_exit  := false
 var pause_menu       : CanvasLayer
 var vignette_rect    : ColorRect
 var dash_lines_layer : CanvasLayer
 
-# Use a static to pass data between scene reloads
-static var _next_level := 1
-static var _next_seed  := 0
 
 # ==============================================================================
 func _ready() -> void:
-	randomize()
-	if _next_seed != 0:
-		world_seed = _next_seed
-		current_level = _next_level
-		_next_seed = 0
+	var transition := GameState.consume_transition()
+	if not transition.is_empty():
+		world_seed = transition["seed"]
+		current_level = transition["level"]
 	else:
 		world_seed = randi() % 999999
 	_load_level(current_level)
@@ -85,8 +94,6 @@ func _load_level(num: int) -> void:
 	platform_data        = level.get("platforms", [])
 	moving_platform_data = level.get("moving", [])
 	wall_data            = level.get("walls", [])
-	crumble_data         = level.get("crumble", [])
-	disappear_data       = level.get("disappear", [])
 	spike_data           = level.get("spikes", [])
 	saw_data             = level.get("saws", [])
 	trampoline_data      = level.get("trampolines", [])
@@ -94,25 +101,37 @@ func _load_level(num: int) -> void:
 	powerup_data         = level.get("powerups", [])
 	coin_positions       = level.get("coins", [])
 	enemy_data           = level.get("enemies", [])
-	shooter_data         = level.get("shooters", [])
 	portal_data          = level.get("portals", [])
-	ice_data             = level.get("ice", [])
-	conveyor_data        = level.get("conveyors", [])
-	jumper_data          = level.get("jumpers", [])
-	wind_zone_data       = level.get("wind_zones", [])
 	key_data             = level.get("keys", [])
 	require_keys         = level.get("require_keys", 0)
-	boss_data            = level.get("boss", [])
+	var crumble_data : Array = level.get("crumble", [])
+	var disappear_data : Array = level.get("disappear", [])
+	var ice_data : Array = level.get("ice", [])
+	var conveyor_data : Array = level.get("conveyors", [])
+	var jumper_data : Array = level.get("jumpers", [])
+	var wind_zone_data : Array = level.get("wind_zones", [])
+	var shooter_data : Array = level.get("shooters", [])
+	var boss_data : Array = level.get("boss", [])
+
+	# Store arrays for _build_world (used once, no need as member vars)
+	level["_crumble"] = crumble_data
+	level["_disappear"] = disappear_data
+	level["_ice"] = ice_data
+	level["_conveyors"] = conveyor_data
+	level["_jumpers"] = jumper_data
+	level["_wind_zones"] = wind_zone_data
+	level["_shooters"] = shooter_data
+	level["_boss"] = boss_data
 
 func _build_world() -> void:
 	Builder.make_background(self, level)
 	Builder.make_walls(self, wall_data)
 	Builder.make_platforms(self, platform_data)
 	Builder.make_moving_platforms(self, moving_platform_data)
-	Builder.make_ice_platforms(self, ice_data)
-	Builder.make_conveyors(self, conveyor_data)
-	crumble_bodies = Builder.make_crumble_platforms(self, crumble_data)
-	disappear_bodies = Builder.make_disappear_platforms(self, disappear_data)
+	ice_platforms = Builder.make_ice_platforms(self, level["_ice"])
+	conveyors = Builder.make_conveyors(self, level["_conveyors"])
+	crumble_bodies = Builder.make_crumble_platforms(self, level["_crumble"])
+	Builder.make_disappear_platforms(self, level["_disappear"])
 	Builder.make_spikes(self, spike_data, _on_hazard_hit)
 	Builder.make_saw_blades(self, saw_data, _on_hazard_hit)
 	Builder.make_trampolines(self, trampoline_data, _on_trampoline_hit)
@@ -124,15 +143,24 @@ func _build_world() -> void:
 	total_coins = coin_positions.size()
 	Builder.make_coins(self, coin_positions, _on_coin_entered)
 
-	Builder.make_enemies(self, enemy_data, _on_enemy_hit)
-	Builder.make_jumpers(self, jumper_data, _on_enemy_hit)
-	Builder.make_shooters(self, shooter_data)
-	Builder.make_wind_zones(self, wind_zone_data)
+	patrol_enemies = Builder.make_enemies(self, enemy_data, _on_enemy_hit)
+	jumping_enemies = Builder.make_jumpers(self, level["_jumpers"], _on_enemy_hit)
+	shooters = Builder.make_shooters(self, level["_shooters"])
+	wind_zones = Builder.make_wind_zones(self, level["_wind_zones"])
 	if key_data.size() > 0:
 		Builder.make_keys(self, key_data, _on_key_collected)
-	boss_node = Builder.make_boss(self, boss_data, _on_boss_hit)
+	boss_node = Builder.make_boss(self, level["_boss"], _on_boss_hit)
 
 	player_node = Builder.make_player(self)
+
+	# Connect entity signals
+	for shooter in shooters:
+		shooter.fired.connect(_on_shooter_fired)
+	if boss_node:
+		boss_node.fired.connect(_on_boss_fired)
+	for cb in crumble_bodies:
+		cb.set_player(player_node)
+		cb.crumbled.connect(_on_crumble_collapsed)
 	player_node.hp_changed.connect(_on_hp_changed)
 	player_node.player_died.connect(_on_player_died)
 	player_node.shield_changed.connect(_on_shield_changed)
@@ -156,19 +184,10 @@ func _build_world() -> void:
 		hud["hud_layer"].add_child(key_label)
 	keys_collected = 0
 
-	# Vignette overlay (shows on low HP)
 	_create_vignette(hud["hud_layer"])
-
-	# Speed lines (shows during dash)
 	_create_dash_lines()
-
-	# Pause key handler (always processes, even when paused)
 	_setup_pause_handler()
-
-	# Start background music
 	Audio.start_music()
-
-	# Fade in from black
 	_fade_in()
 
 	var mm := Minimap.make_minimap(
@@ -182,18 +201,18 @@ func _build_world() -> void:
 func _process(delta: float) -> void:
 	if not player_node or not timer_label:
 		return
-	portal_cooldown = maxf(portal_cooldown - delta, 0.0)
-	Portals.check_portal_input(portal_pairs, player_in_portals, portal_cooldown, player_node, _teleport_to)
+	portal_cooldown_timer = maxf(portal_cooldown_timer - delta, 0.0)
+	Portals.check_portal_input(portal_pairs, player_in_portals, portal_cooldown_timer, player_node, _teleport_to)
 	Minimap.update(minimap_player, player_node)
-	# Check exit portal
+
 	if player_near_exit and Input.is_action_just_pressed("ui_down"):
 		player_near_exit = false
 		_go_next_level()
 		return
-	# Vignette pulse on low HP
+
 	_update_vignette()
-	# Speed lines during dash
 	_update_dash_lines()
+
 	if not level_complete:
 		elapsed_time += delta
 		var mins := int(elapsed_time) / 60
@@ -201,218 +220,24 @@ func _process(delta: float) -> void:
 		var ms   := int(fmod(elapsed_time, 1.0) * 100)
 		timer_label.text = "⏱  %02d:%02d.%02d" % [mins, secs, ms]
 
-# -- Physics (enemies, bullets, crumble, disappear) ----------------------------
+# -- Physics (entities self-update, World handles platform effects) -------------
 func _physics_process(delta: float) -> void:
 	if not player_node:
 		return
 
-	# Ice & conveyor platform effects
+	# Ice & conveyor platform effects (require player reference)
 	if player_node.is_on_floor():
-		var px := player_node.global_position.x
-		var py := player_node.global_position.y
-		for child in get_children():
-			if child is StaticBody2D:
-				if child.has_meta("ice"):
-					var ix : float = child.position.x
-					var iy : float = child.position.y
-					if absf(px - ix) < 100 and absf(py - iy) < 30:
-						# Reduce friction on ice
-						player_node.velocity.x = move_toward(player_node.velocity.x, 0.0, 30.0 * delta)
-				elif child.has_meta("conveyor"):
-					var cx : float = child.position.x
-					var cy : float = child.position.y
-					if absf(px - cx) < 120 and absf(py - cy) < 30:
-						var cdir : float = child.get_meta("conveyor_dir")
-						var cspd : float = child.get_meta("conveyor_speed")
-						player_node.velocity.x += cdir * cspd * delta
+		for ice in ice_platforms:
+			if is_instance_valid(ice):
+				ice.apply_ice(player_node, delta)
+		for conv in conveyors:
+			if is_instance_valid(conv):
+				conv.apply_conveyor(player_node, delta)
 
-	# Patrol enemies
-	for child in get_children():
-		if child is Area2D and child.has_meta("patrol_center"):
-			var center : float = child.get_meta("patrol_center")
-			var prange : float = child.get_meta("patrol_range")
-			var spd    : float = child.get_meta("patrol_speed")
-			var dir    : float = child.get_meta("direction")
-
-			child.position.x += dir * spd * delta
-
-			if child.position.x > center + prange:
-				child.set_meta("direction", -1.0)
-			elif child.position.x < center - prange:
-				child.set_meta("direction", 1.0)
-
-			# Flip enemy animation
-			var enemy_anim : Node = child.get_node_or_null("Anim")
-			if enemy_anim and enemy_anim is AnimatedSprite2D:
-				var ea := enemy_anim as AnimatedSprite2D
-				var anim_name := "walk_right" if dir > 0 else "walk_left"
-				if ea.animation != anim_name:
-					ea.play(anim_name)
-
-	# Jumping enemies (patrol + jump on timer)
-	for child in get_children():
-		if child is Area2D and child.has_meta("jumper"):
-			var jt : float = child.get_meta("jump_timer")
-			var vy : float = child.get_meta("jumper_vy")
-			jt -= delta
-			if jt <= 0.0:
-				jt = child.get_meta("jump_interval")
-				vy = -child.get_meta("jump_force")
-			# Apply gravity
-			vy += 800.0 * delta
-			child.position.y += vy * delta
-			child.set_meta("jumper_vy", vy)
-			child.set_meta("jump_timer", jt)
-			# Don't fall below spawn Y (approximate ground)
-			if child.position.y > float(child.get_meta("patrol_center")) + 50:
-				child.position.y = float(child.get_meta("patrol_center")) + 50
-				child.set_meta("jumper_vy", 0.0)
-
-	# Wind zones (push player when overlapping)
-	for child in get_children():
-		if child is Area2D and child.has_meta("wind_zone"):
-			var wpos : Vector2 = child.global_position
-			var px := player_node.global_position.x
-			var py := player_node.global_position.y
-			# Check rough overlap
-			if absf(px - wpos.x) < 160 and absf(py - wpos.y) < 120:
-				var wdir : float = child.get_meta("wind_dir")
-				var wstr : float = child.get_meta("wind_strength")
-				player_node.velocity.x += wdir * wstr * delta
-
-	# Boss behavior
-	if boss_node and is_instance_valid(boss_node):
-		var bspd : float = boss_node.get_meta("boss_speed")
-		var bdir : float = boss_node.get_meta("boss_dir")
-		boss_node.position.x += bdir * bspd * delta
-		if boss_node.position.x > 1050:
-			boss_node.set_meta("boss_dir", -1.0)
-		elif boss_node.position.x < 230:
-			boss_node.set_meta("boss_dir", 1.0)
-		# Boss fire timer
-		var bft : float = boss_node.get_meta("boss_fire_timer")
-		bft -= delta
-		if bft <= 0.0:
-			bft = boss_node.get_meta("boss_fire_interval")
-			# Fire bullet toward player
-			var dir_to_player : float = sign(player_node.global_position.x - boss_node.global_position.x)
-			if dir_to_player == 0:
-				dir_to_player = 1.0
-			var b := Builder.spawn_bullet(self, boss_node.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0, _on_bullet_hit)
-			bullets.append(b)
-			Audio.play("shoot", -8.0)
-		boss_node.set_meta("boss_fire_timer", bft)
-		# Flip animation
-		var boss_anim : Node = boss_node.get_node_or_null("Anim")
-		if boss_anim and boss_anim is AnimatedSprite2D:
-			var ba := boss_anim as AnimatedSprite2D
-			var ban := "walk_right" if bdir > 0 else "walk_left"
-			if ba.animation != ban:
-				ba.play(ban)
-
-	# Shooting enemies
-	for child in get_children():
-		if child is StaticBody2D and child.has_meta("shooter"):
-			var timer : float = child.get_meta("fire_timer")
-			timer -= delta
-			if timer <= 0.0:
-				timer = child.get_meta("fire_interval")
-				var dir : float = child.get_meta("shoot_dir")
-				var spd : float = child.get_meta("bullet_speed")
-				var offset := Vector2(dir * 20, 0)
-				var b := Builder.spawn_bullet(self, child.global_position + offset, dir, spd, _on_bullet_hit)
-				bullets.append(b)
-				Audio.play("shoot", -10.0)
-			child.set_meta("fire_timer", timer)
-
-	# Bullets
-	var dead_bullets : Array = []
-	for b in bullets:
-		if not is_instance_valid(b):
-			dead_bullets.append(b)
-			continue
-		var dir : float = b.get_meta("bullet_dir")
-		var spd : float = b.get_meta("bullet_speed")
-		var life : float = b.get_meta("lifetime")
-		b.position.x += dir * spd * delta
-		life -= delta
-		b.set_meta("lifetime", life)
-		if life <= 0.0 or b.position.x < -50 or b.position.x > 1350:
-			b.queue_free()
-			dead_bullets.append(b)
-	for b in dead_bullets:
-		bullets.erase(b)
-
-	# Crumbling platforms
-	for sb in crumble_bodies:
-		if not is_instance_valid(sb):
-			continue
-
-		var ct : float = sb.get_meta("crumble_timer")
-		var rt : float = sb.get_meta("respawn_timer")
-
-		if rt > 0.0:
-			rt -= delta
-			sb.set_meta("respawn_timer", rt)
-			if rt <= 0.0:
-				sb.visible = true
-				for c in sb.get_children():
-					if c is CollisionShape2D:
-						c.disabled = false
-				sb.set_meta("crumble_timer", -1.0)
-			continue
-
-		if ct > 0.0:
-			ct -= delta
-			sb.set_meta("crumble_timer", ct)
-			sb.position.x = sb.get_meta("origin_x") + randf_range(-2, 2)
-			if ct <= 0.0:
-				sb.visible = false
-				for c in sb.get_children():
-					if c is CollisionShape2D:
-						c.disabled = true
-				sb.position.x = sb.get_meta("origin_x")
-				sb.set_meta("respawn_timer", 3.0)
-				_spawn_crumble_particles(Vector2(sb.get_meta("origin_x"), sb.get_meta("origin_y")), sb.get_meta("width"))
-				Audio.play("crumble", -6.0)
-			continue
-
-		if ct < 0.0 and player_node.is_on_floor():
-			var px := player_node.global_position.x
-			var py := player_node.global_position.y
-			var ox : float = sb.get_meta("origin_x")
-			var oy : float = sb.get_meta("origin_y")
-			var w  : float = sb.get_meta("width")
-			if absf(px - ox) < w * 0.5 + 18 and absf(py - oy) < 40:
-				sb.set_meta("crumble_timer", 0.5)
-
-	# Disappearing platforms
-	for sb in disappear_bodies:
-		if not is_instance_valid(sb):
-			continue
-		var timer : float = sb.get_meta("timer")
-		var is_on : bool  = sb.get_meta("is_on")
-		timer -= delta
-		sb.set_meta("timer", timer)
-
-		if timer <= 0.0:
-			is_on = not is_on
-			sb.set_meta("is_on", is_on)
-			sb.set_meta("timer", sb.get_meta("on_time") if is_on else sb.get_meta("off_time"))
-			for c in sb.get_children():
-				if c is CollisionShape2D:
-					c.disabled = not is_on
-			var fill_node : Node = sb.get_node_or_null("Fill")
-			if fill_node:
-				fill_node.modulate.a = 1.0 if is_on else 0.2
-
-		# Warning blink before disappearing
-		if is_on and timer < 0.5:
-			var blink_fill : Node = sb.get_node_or_null("Fill")
-			if blink_fill:
-				blink_fill.modulate.a = 1.0 if int(timer * 8) % 2 == 0 else 0.3
-
-# -- Pause input is handled by a child node that always processes (see _ready)
+	# Wind zones (require player reference)
+	for zone in wind_zones:
+		if is_instance_valid(zone):
+			zone.apply_wind(player_node, delta)
 
 # -- Input ---------------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:
@@ -444,14 +269,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # -- Level switching -----------------------------------------------------------
 func _switch_level(to_level: int) -> void:
-	_next_level = to_level
-	_next_seed  = world_seed
+	GameState.queue_level_transition(to_level, world_seed)
 	_fade_and_reload()
 
 func _fade_in() -> void:
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 1)
-	overlay.size = Vector2(1280, 720)
+	overlay.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cl := CanvasLayer.new()
 	cl.layer = 100
@@ -463,10 +287,9 @@ func _fade_in() -> void:
 	tw.tween_callback(cl.queue_free)
 
 func _fade_and_reload() -> void:
-	# Fade to black then reload
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0)
-	overlay.size = Vector2(1280, 720)
+	overlay.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cl := CanvasLayer.new()
 	cl.layer = 100
@@ -478,6 +301,7 @@ func _fade_and_reload() -> void:
 	tw.tween_callback(get_tree().reload_current_scene)
 
 func _go_next_level() -> void:
+	GameState.complete_level(current_level, elapsed_time)
 	current_level += 1
 	_switch_level(current_level)
 
@@ -485,14 +309,13 @@ func _go_next_level() -> void:
 func _on_hazard_hit(body: Node2D, _hazard: Area2D) -> void:
 	if body == player_node:
 		player_node.take_damage(1)
-		player_node.velocity.y = -250
+		player_node.velocity.y = HAZARD_BOUNCE
 
 func _on_trampoline_hit(body: Node2D, trampoline: Area2D) -> void:
 	if body != player_node:
 		return
 	player_node.trampoline_bounce()
 	Audio.play("trampoline", -4.0)
-	# Squash the whole trampoline then spring back
 	var orig_scale := trampoline.scale
 	var tw := create_tween()
 	tw.tween_property(trampoline, "scale", Vector2(1.3, 0.4), 0.05)
@@ -512,7 +335,6 @@ func _on_checkpoint_hit(body: Node2D, checkpoint: Area2D) -> void:
 	if flag:
 		(flag as Polygon2D).color = Colors.CHECKPOINT_ACT
 
-	# Sparkle effect
 	for i in 6:
 		var spark := ColorRect.new()
 		spark.size = Vector2(3, 3)
@@ -538,64 +360,34 @@ func _on_key_collected(body: Node2D, key_area: Area2D) -> void:
 	Audio.play("powerup", -4.0, 1.3)
 	if key_label:
 		key_label.text = "🔑 %d / %d" % [keys_collected, require_keys]
-	# Check if level now complete
 	if score >= total_coins and keys_collected >= require_keys and not level_complete:
 		level_complete = true
 		score_label.text = "Complete! Go to EXIT portal!"
 		_spawn_exit_portal()
 		Audio.play("level_complete", -2.0)
-	# Sparkle effect
-	var pos := key_area.global_position
-	for i in 8:
-		var spark := ColorRect.new()
-		spark.size = Vector2(4, 4)
-		spark.color = Color(1.0, 0.85, 0.15, 0.9)
-		spark.position = pos
-		spark.z_index = 5
-		add_child(spark)
-		var angle := i * TAU / 8.0
-		var target := pos + Vector2(cos(angle) * 30, sin(angle) * 30)
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(spark, "position", target, 0.3)
-		tw.tween_property(spark, "modulate:a", 0.0, 0.3)
-		tw.set_parallel(false)
-		tw.tween_callback(spark.queue_free)
+	_spawn_sparkle_burst(key_area.global_position, Color(1.0, 0.85, 0.15, 0.9), 8, 30.0)
 
 func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 	if body != player_node:
 		return
-	# Stomp from above = damage boss
-	if player_node.velocity.y > 0 and player_node.global_position.y < boss.global_position.y - 20:
-		var hp : int = boss.get_meta("boss_hp") - 1
-		boss.set_meta("boss_hp", hp)
+	var boss_enemy := boss as BossEnemy
+	if player_node.velocity.y > 0 and player_node.global_position.y < boss.global_position.y - BOSS_STOMP_OFFSET:
+		var remaining_hp := boss_enemy.take_hit()
 		player_node.stomp_bounce()
 		Audio.play("stomp", -2.0)
 		_freeze_frame(0.08)
 		player_node.camera_shake(6.0, 0.2)
-		# Update HP bar
-		var bar : Node = boss.get_node_or_null("BarFill")
-		if bar:
-			var max_hp : int = boss.get_meta("boss_max_hp")
-			(bar as ColorRect).size.x = 60.0 * hp / max_hp
-		# Flash boss red
-		var anim : Node = boss.get_node_or_null("Anim")
-		if anim:
-			anim.modulate = Color(10, 0, 0)
-			var tw := get_tree().create_tween()
-			tw.tween_property(anim, "modulate", Color.WHITE, 0.15)
-		if hp <= 0:
+		if remaining_hp <= 0:
 			_kill_enemy(boss)
 			boss_node = null
 			Audio.play("level_complete", -2.0)
 	else:
-		# Side contact = player takes damage
 		player_node.take_damage(1)
-		var knockback_dir : float = sign(player_node.global_position.x - boss.global_position.x)
+		var knockback_dir := signf(player_node.global_position.x - boss.global_position.x)
 		if knockback_dir == 0:
 			knockback_dir = 1
-		player_node.velocity.x = knockback_dir * 350
-		player_node.velocity.y = -250
+		player_node.velocity.x = knockback_dir * BOSS_KNOCKBACK_X
+		player_node.velocity.y = HAZARD_BOUNCE
 
 func _on_powerup_hit(body: Node2D, powerup: Area2D) -> void:
 	if body != player_node:
@@ -604,7 +396,7 @@ func _on_powerup_hit(body: Node2D, powerup: Area2D) -> void:
 	if ptype == "shield":
 		player_node.grant_shield()
 	else:
-		player_node.grant_speed_boost(5.0)
+		player_node.grant_speed_boost(SPEED_BOOST_DURATION)
 
 	_spawn_powerup_effect(powerup.global_position, ptype)
 	powerup.queue_free()
@@ -635,25 +427,24 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 func _on_enemy_hit(body: Node2D, enemy: Area2D) -> void:
 	if body != player_node:
 		return
-	if player_node.velocity.y > 0 and player_node.global_position.y < enemy.global_position.y - 8:
+	if player_node.velocity.y > 0 and player_node.global_position.y < enemy.global_position.y - ENEMY_STOMP_OFFSET:
 		_kill_enemy(enemy)
 		player_node.stomp_bounce()
 		Audio.play("stomp", -4.0)
 		_freeze_frame(0.05)
 	else:
 		player_node.take_damage(1)
-		var knockback_dir : float = sign(player_node.global_position.x - enemy.global_position.x)
+		var knockback_dir := signf(player_node.global_position.x - enemy.global_position.x)
 		if knockback_dir == 0:
 			knockback_dir = 1
-		player_node.velocity.x = knockback_dir * 250
-		player_node.velocity.y = -200
+		player_node.velocity.x = knockback_dir * ENEMY_KNOCKBACK_X
+		player_node.velocity.y = ENEMY_KNOCKBACK_Y
 
 func _on_bullet_hit(body: Node2D, bullet: Area2D) -> void:
 	if body == player_node:
 		player_node.take_damage(1)
-		player_node.velocity.y = -150
+		player_node.velocity.y = BULLET_BOUNCE_Y
 		bullet.queue_free()
-		bullets.erase(bullet)
 		Audio.play("bullet_hit", -6.0)
 
 func _on_portal_body_entered(body: Node2D, portal: Area2D) -> void:
@@ -687,50 +478,72 @@ func _on_player_died() -> void:
 	level_complete = false
 	score_label.text = "  0 / %d" % total_coins
 
-	# Clean up dynamic objects
-	var to_remove : Array = []
+	# Clean up dynamic objects from typed arrays
+	for enemy in patrol_enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	patrol_enemies.clear()
+
+	for jumper in jumping_enemies:
+		if is_instance_valid(jumper):
+			jumper.queue_free()
+	jumping_enemies.clear()
+
+	# Clean up bullets (they are children of self)
 	for child in get_children():
-		if child is Area2D:
-			if child.has_meta("coin") or child.has_meta("patrol_center") or child.has_meta("bullet") or child.has_meta("powerup_type"):
-				to_remove.append(child)
-	for child in to_remove:
-		child.queue_free()
-	bullets.clear()
+		if child is Bullet:
+			child.queue_free()
+
+	# Clean up coins and powerups via groups
+	for coin in get_tree().get_nodes_in_group("coins"):
+		coin.queue_free()
+	for powerup in get_tree().get_nodes_in_group("powerups"):
+		powerup.queue_free()
 
 	# Reset crumble platforms
 	for sb in crumble_bodies:
 		if is_instance_valid(sb):
-			sb.visible = true
-			sb.position = Vector2(sb.get_meta("origin_x"), sb.get_meta("origin_y"))
-			sb.set_meta("crumble_timer", -1.0)
-			sb.set_meta("respawn_timer", -1.0)
-			for c in sb.get_children():
-				if c is CollisionShape2D:
-					c.disabled = false
+			sb.reset()
 
 	# Reset checkpoints
-	for child in get_children():
-		if child is Area2D and child.has_meta("checkpoint"):
-			child.set_meta("activated", false)
-			var flag_node : Node = child.get_node_or_null("Flag")
-			if flag_node:
-				(flag_node as Polygon2D).color = Colors.CHECKPOINT_CLR
-	player_node.respawn_pos = Vector2(640, 630)
+	for child in get_tree().get_nodes_in_group("checkpoints"):
+		child.set_meta("activated", false)
+		var flag_node : Node = child.get_node_or_null("Flag")
+		if flag_node:
+			(flag_node as Polygon2D).color = Colors.CHECKPOINT_CLR
+	player_node.respawn_pos = PLAYER_SPAWN
 
 	await get_tree().process_frame
 	Builder.make_coins(self, coin_positions, _on_coin_entered)
-	Builder.make_enemies(self, enemy_data, _on_enemy_hit)
+	patrol_enemies = Builder.make_enemies(self, enemy_data, _on_enemy_hit)
 	Builder.make_powerups(self, powerup_data, _on_powerup_hit)
+
+# -- Entity signal callbacks ---------------------------------------------------
+func _on_shooter_fired(shooter: Shooter) -> void:
+	var offset := Vector2(shooter.shoot_dir * 20, 0)
+	Builder.spawn_bullet(self, shooter.global_position + offset, shooter.shoot_dir, shooter.bullet_speed, _on_bullet_hit)
+	Audio.play("shoot", -10.0)
+
+func _on_boss_fired(boss: BossEnemy) -> void:
+	var dir_to_player := signf(player_node.global_position.x - boss.global_position.x)
+	if dir_to_player == 0:
+		dir_to_player = 1.0
+	Builder.spawn_bullet(self, boss.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0, _on_bullet_hit)
+	Audio.play("shoot", -8.0)
+
+func _on_crumble_collapsed(platform: CrumblePlatform) -> void:
+	_spawn_crumble_particles(Vector2(platform.origin_x, platform.origin_y), platform.width)
+	Audio.play("crumble", -6.0)
 
 # -- Teleportation -------------------------------------------------------------
 func _teleport_to(target: Vector2) -> void:
-	portal_cooldown = 0.5
+	portal_cooldown_timer = PORTAL_COOLDOWN
 	player_in_portals.clear()
 	Audio.play("portal", -4.0)
 	Portals.spawn_teleport_effect(self, player_node.global_position)
 	player_node.position = target + Vector2(0, -10)
 	player_node.velocity = Vector2.ZERO
-	player_node.invincible = 1.0  # Brief invincibility after teleport
+	player_node.invincible = 1.0
 	Portals.spawn_teleport_effect(self, target + Vector2(0, -10))
 
 # -- Exit portal ---------------------------------------------------------------
@@ -740,7 +553,10 @@ func _spawn_exit_portal() -> void:
 # -- Particle effects ----------------------------------------------------------
 func _spawn_powerup_effect(pos: Vector2, ptype: String) -> void:
 	var color := Colors.SHIELD_CLR if ptype == "shield" else Colors.SPEED_CLR
-	for i in 12:
+	_spawn_sparkle_burst(pos, color, 12, 35.0)
+
+func _spawn_sparkle_burst(pos: Vector2, color: Color, count: int, radius: float) -> void:
+	for i in count:
 		var p := ColorRect.new()
 		p.size = Vector2(4, 4)
 		p.color = color
@@ -748,8 +564,8 @@ func _spawn_powerup_effect(pos: Vector2, ptype: String) -> void:
 		p.z_index = 5
 		add_child(p)
 
-		var angle := i * TAU / 12.0
-		var target := pos + Vector2(cos(angle) * 35, sin(angle) * 35)
+		var angle := i * TAU / count
+		var target := pos + Vector2(cos(angle) * radius, sin(angle) * radius)
 		var tw := get_tree().create_tween()
 		tw.set_parallel(true)
 		tw.tween_property(p, "position", target, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -780,7 +596,6 @@ func _spawn_burst(pos: Vector2, color: Color, amount: int, speed: float, lifetim
 	mat.scale_max = 6.0
 	mat.color = color
 
-	# Fade out
 	var gradient := Gradient.new()
 	gradient.set_color(0, color)
 	gradient.set_color(1, Color(color.r, color.g, color.b, 0.0))
@@ -791,7 +606,6 @@ func _spawn_burst(pos: Vector2, color: Color, amount: int, speed: float, lifetim
 	particles.process_material = mat
 	add_child(particles)
 
-	# Auto-free after lifetime
 	var tw := get_tree().create_tween()
 	tw.tween_interval(lifetime + 0.1)
 	tw.tween_callback(particles.queue_free)
@@ -799,7 +613,6 @@ func _spawn_burst(pos: Vector2, color: Color, amount: int, speed: float, lifetim
 func _kill_enemy(enemy: Area2D) -> void:
 	var pos := enemy.global_position
 
-	# Squash animation then destroy
 	var anim : Node = enemy.get_node_or_null("Anim")
 	if anim:
 		var tw := get_tree().create_tween()
@@ -809,6 +622,12 @@ func _kill_enemy(enemy: Area2D) -> void:
 	else:
 		_spawn_enemy_death_particles(pos)
 		enemy.queue_free()
+
+	# Remove from typed arrays
+	if enemy is PatrolEnemy:
+		patrol_enemies.erase(enemy)
+	elif enemy is JumpingEnemy:
+		jumping_enemies.erase(enemy)
 
 func _spawn_enemy_death_particles(pos: Vector2) -> void:
 	_spawn_burst(pos, Colors.ENEMY_CLR, 16, 120.0, 0.5)
@@ -820,7 +639,7 @@ func _spawn_crumble_particles(pos: Vector2, _w: float) -> void:
 func _freeze_frame(duration: float) -> void:
 	get_tree().paused = true
 	await get_tree().create_timer(duration, true, false, true).timeout
-	if not pause_menu:  # Don't unpause if user opened menu during freeze
+	if not pause_menu:
 		get_tree().paused = false
 
 func _setup_pause_handler() -> void:
@@ -846,20 +665,17 @@ func _toggle_pause_menu() -> void:
 	pause_menu.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(pause_menu)
 
-	# Dark overlay
 	var overlay := ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.7)
-	overlay.size = Vector2(1280, 720)
+	overlay.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
 	pause_menu.add_child(overlay)
 
-	# Panel background
 	var panel := ColorRect.new()
 	panel.color = Color(0.1, 0.1, 0.2, 0.95)
 	panel.size = Vector2(500, 480)
 	panel.position = Vector2(390, 120)
 	pause_menu.add_child(panel)
 
-	# Title
 	var title := Label.new()
 	title.text = "PAUSED"
 	title.position = Vector2(555, 135)
@@ -867,7 +683,6 @@ func _toggle_pause_menu() -> void:
 	title.add_theme_color_override("font_color", Color(1, 0.95, 0.55))
 	pause_menu.add_child(title)
 
-	# Controls list
 	var controls : Array = [
 		["Move", "Arrow Keys / ← →"],
 		["Jump", "Space / Up Arrow"],
@@ -910,7 +725,6 @@ func _toggle_pause_menu() -> void:
 
 		y_pos += 22
 
-	# Resume hint
 	var hint := Label.new()
 	hint.text = "Press ESC to resume"
 	hint.position = Vector2(510, y_pos + 15)
@@ -921,7 +735,7 @@ func _toggle_pause_menu() -> void:
 # -- Vignette (low HP warning) -------------------------------------------------
 func _create_vignette(hud_layer: CanvasLayer) -> void:
 	vignette_rect = ColorRect.new()
-	vignette_rect.size = Vector2(1280, 720)
+	vignette_rect.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
 	vignette_rect.color = Color(0.8, 0.05, 0.05, 0.0)
 	vignette_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_layer.add_child(vignette_rect)
@@ -930,7 +744,6 @@ func _update_vignette() -> void:
 	if not vignette_rect or not player_node:
 		return
 	if player_node.hp <= 1:
-		# Pulse red overlay when 1 HP
 		var pulse := absf(sin(elapsed_time * 3.0)) * 0.2
 		vignette_rect.color.a = pulse
 	else:
@@ -943,11 +756,10 @@ func _create_dash_lines() -> void:
 	dash_lines_layer.visible = false
 	add_child(dash_lines_layer)
 
-	# Create several horizontal speed line rects
 	for i in 12:
 		var line := ColorRect.new()
 		line.size = Vector2(randf_range(80, 200), randf_range(1, 3))
-		line.position = Vector2(randf_range(-50, 1280), randf_range(50, 670))
+		line.position = Vector2(randf_range(-50, VIEWPORT_WIDTH), randf_range(50, 670))
 		line.color = Color(1, 1, 1, randf_range(0.1, 0.3))
 		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		dash_lines_layer.add_child(line)

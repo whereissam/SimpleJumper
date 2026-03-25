@@ -1,6 +1,5 @@
 class_name Builder
 const Colors = preload("res://scripts/Colors.gd")
-const Sprites = preload("res://scripts/Sprites.gd")
 
 # -- Background (parallax with Kenney tiles) -----------------------------------
 static func make_background(w: Node2D, level_data: Dictionary) -> void:
@@ -28,7 +27,6 @@ static func make_background(w: Node2D, level_data: Dictionary) -> void:
 
 	# Parallax layer 1: far mountains (moves slowly)
 	var parallax := ParallaxBackground.new()
-	# ParallaxBackground doesn't support z_index; add it early so it renders behind
 	w.add_child(parallax)
 
 	var far_layer := ParallaxLayer.new()
@@ -37,7 +35,7 @@ static func make_background(w: Node2D, level_data: Dictionary) -> void:
 
 	for _i in 10:
 		var s := Sprite2D.new()
-		s.texture = load(Sprites.BG_SKY_MOUNT)
+		s.texture = Sprites.BG_SKY_MOUNT
 		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		s.scale = Vector2(6, 6)
 		s.modulate = Color(1, 1, 1, 0.12)
@@ -51,7 +49,7 @@ static func make_background(w: Node2D, level_data: Dictionary) -> void:
 
 	for _i in 8:
 		var s := Sprite2D.new()
-		s.texture = load(Sprites.BG_SKY_CLOUD)
+		s.texture = Sprites.BG_SKY_CLOUD
 		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		s.scale = Vector2(5, 5)
 		s.modulate = Color(1, 1, 1, rng.randf_range(0.06, 0.15))
@@ -75,10 +73,7 @@ static func make_walls(w: Node2D, wall_data: Array) -> void:
 		var brick_size : float = 18.0 * wall_scale
 		var num_v := maxi(int(float(wd[3]) / brick_size), 1)
 		for row in num_v:
-			var s := Sprite2D.new()
-			s.texture = load(Sprites.BRICK)
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(wall_scale, wall_scale)
+			var s := Sprites.make_sprite(Sprites.BRICK, Vector2(wall_scale, wall_scale))
 			s.position = Vector2(
 				0,
 				-float(wd[3]) * 0.5 + brick_size * 0.5 + row * brick_size
@@ -104,31 +99,10 @@ static func _create_static_platform(w: Node2D, pd: Array) -> StaticBody2D:
 	rs.size  = Vector2(pd[2], pd[3])
 	cs.shape = rs
 	if not is_ground:
-		cs.one_way_collision = true  # Can jump through from below
+		cs.one_way_collision = true
 	sb.add_child(cs)
 
-	# Scale sprites to match collision height exactly
-	var plat_h : float = pd[3]
-	var sprite_scale : float = plat_h / 18.0  # 18px is raw tile size
-	var tile_w : float = 18.0 * sprite_scale
-	var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
-	for i in num_tiles:
-		var s := Sprite2D.new()
-		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		if num_tiles == 1:
-			s.texture = load(Sprites.GRASS_TOP)
-		elif i == 0:
-			s.texture = load(Sprites.GRASS_LEFT)
-		elif i == num_tiles - 1:
-			s.texture = load(Sprites.GRASS_RIGHT)
-		else:
-			s.texture = load(Sprites.GRASS_TOP)
-		s.scale = Vector2(sprite_scale, sprite_scale)
-		s.position = Vector2(
-			-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
-			0
-		)
-		sb.add_child(s)
+	Sprites.tile_sprites(sb, float(pd[2]), float(pd[3]), Sprites.GRASS_TOP)
 
 	w.add_child(sb)
 	return sb
@@ -145,22 +119,7 @@ static func make_moving_platforms(w: Node2D, data: Array) -> void:
 		cs.shape = rs
 		ab.add_child(cs)
 
-		# Scale sprites to match collision height
-		var mp_h : float = mp[3]
-		var mp_scale : float = mp_h / 18.0
-		var tile_w : float = 18.0 * mp_scale
-		var num_tiles := maxi(int(float(mp[2]) / tile_w), 1)
-		for i in num_tiles:
-			var s := Sprite2D.new()
-			s.texture = load(Sprites.WOOD_PLANK)
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(mp_scale, mp_scale)
-			s.modulate = Color(0.8, 0.6, 1.0)
-			s.position = Vector2(
-				-float(mp[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
-				0
-			)
-			ab.add_child(s)
+		Sprites.tile_sprites(ab, float(mp[2]), float(mp[3]), Sprites.WOOD_PLANK, Color(0.8, 0.6, 1.0))
 
 		w.add_child(ab)
 
@@ -180,18 +139,15 @@ static func make_moving_platforms(w: Node2D, data: Array) -> void:
 			tw.tween_property(ab, "position:y", float(mp[1]), duration)
 
 # -- Crumbling Platforms -------------------------------------------------------
-static func make_crumble_platforms(w: Node2D, data: Array) -> Array:
-	var crumble_bodies : Array = []
+static func make_crumble_platforms(w: Node2D, data: Array) -> Array[CrumblePlatform]:
+	var bodies: Array[CrumblePlatform] = []
 	for cd in data:
-		var sb := StaticBody2D.new()
+		var sb := CrumblePlatform.new()
 		sb.position = Vector2(cd[0], cd[1])
-		sb.set_meta("crumble", true)
-		sb.set_meta("crumble_timer", -1.0)
-		sb.set_meta("respawn_timer", -1.0)
-		sb.set_meta("origin_x", float(cd[0]))
-		sb.set_meta("origin_y", float(cd[1]))
-		sb.set_meta("width", float(cd[2]))
-		sb.set_meta("height", float(cd[3]))
+		sb.origin_x = float(cd[0])
+		sb.origin_y = float(cd[1])
+		sb.width = float(cd[2])
+		sb.height = float(cd[3])
 
 		var cs := CollisionShape2D.new()
 		var rs := RectangleShape2D.new()
@@ -199,32 +155,18 @@ static func make_crumble_platforms(w: Node2D, data: Array) -> Array:
 		cs.shape = rs
 		sb.add_child(cs)
 
-		# Scale crate sprites to match collision
-		var cd_h : float = cd[3]
-		var cd_scale : float = cd_h / 18.0
-		var tile_w : float = 18.0 * cd_scale
-		var num_tiles := maxi(int(float(cd[2]) / tile_w), 1)
-		for i in num_tiles:
-			var s := Sprite2D.new()
-			s.texture = load(Sprites.CRATE)
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(cd_scale, cd_scale)
-			s.position = Vector2(
-				-float(cd[2]) * 0.5 + tile_w * 0.5 + i * tile_w,
-				0
-			)
-			sb.add_child(s)
+		Sprites.tile_sprites(sb, float(cd[2]), float(cd[3]), Sprites.CRATE)
 
 		w.add_child(sb)
-		crumble_bodies.append(sb)
-	return crumble_bodies
+		bodies.append(sb)
+	return bodies
 
 # -- Ice Platforms (slippery) --------------------------------------------------
-static func make_ice_platforms(w: Node2D, data: Array) -> void:
+static func make_ice_platforms(w: Node2D, data: Array) -> Array[IcePlatform]:
+	var bodies: Array[IcePlatform] = []
 	for pd in data:
-		var sb := StaticBody2D.new()
+		var sb := IcePlatform.new()
 		sb.position = Vector2(pd[0], pd[1])
-		sb.set_meta("ice", true)
 
 		var cs := CollisionShape2D.new()
 		var rs := RectangleShape2D.new()
@@ -233,21 +175,7 @@ static func make_ice_platforms(w: Node2D, data: Array) -> void:
 		cs.one_way_collision = true
 		sb.add_child(cs)
 
-		# Light blue tinted platform
-		var plat_h : float = pd[3]
-		var sprite_scale : float = plat_h / 18.0
-		var tile_w : float = 18.0 * sprite_scale
-		var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
-		for i in num_tiles:
-			var s := Sprite2D.new()
-			s.texture = load(Sprites.GRASS_TOP)
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(sprite_scale, sprite_scale)
-			s.modulate = Color(0.6, 0.9, 1.0)  # Ice blue tint
-			s.position = Vector2(
-				-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w, 0
-			)
-			sb.add_child(s)
+		Sprites.tile_sprites(sb, float(pd[2]), float(pd[3]), Sprites.GRASS_TOP, Color(0.6, 0.9, 1.0))
 
 		# Ice shine particles (decorative)
 		for i in 3:
@@ -261,15 +189,16 @@ static func make_ice_platforms(w: Node2D, data: Array) -> void:
 			sb.add_child(shine)
 
 		w.add_child(sb)
+		bodies.append(sb)
+	return bodies
 
 # -- Conveyor Belt Platforms ---------------------------------------------------
-static func make_conveyors(w: Node2D, data: Array) -> void:
+static func make_conveyors(w: Node2D, data: Array) -> Array[ConveyorPlatform]:
+	var bodies: Array[ConveyorPlatform] = []
 	for pd in data:
-		var sb := StaticBody2D.new()
+		var sb := ConveyorPlatform.new()
 		sb.position = Vector2(pd[0], pd[1])
-		sb.set_meta("conveyor", true)
-		sb.set_meta("conveyor_dir", float(pd[4]))
-		sb.set_meta("conveyor_speed", 120.0)
+		sb.conveyor_dir = float(pd[4])
 
 		var cs := CollisionShape2D.new()
 		var rs := RectangleShape2D.new()
@@ -278,21 +207,7 @@ static func make_conveyors(w: Node2D, data: Array) -> void:
 		cs.one_way_collision = true
 		sb.add_child(cs)
 
-		# Orange tinted platform
-		var plat_h : float = pd[3]
-		var sprite_scale : float = plat_h / 18.0
-		var tile_w : float = 18.0 * sprite_scale
-		var num_tiles := maxi(int(float(pd[2]) / tile_w), 1)
-		for i in num_tiles:
-			var s := Sprite2D.new()
-			s.texture = load(Sprites.GRASS_TOP)
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(sprite_scale, sprite_scale)
-			s.modulate = Color(1.0, 0.7, 0.3)  # Orange conveyor tint
-			s.position = Vector2(
-				-float(pd[2]) * 0.5 + tile_w * 0.5 + i * tile_w, 0
-			)
-			sb.add_child(s)
+		Sprites.tile_sprites(sb, float(pd[2]), float(pd[3]), Sprites.GRASS_TOP, Color(1.0, 0.7, 0.3))
 
 		# Direction arrows
 		var arrow_dir := ">" if pd[4] > 0 else "<"
@@ -308,19 +223,18 @@ static func make_conveyors(w: Node2D, data: Array) -> void:
 			sb.add_child(lbl)
 
 		w.add_child(sb)
+		bodies.append(sb)
+	return bodies
 
 # -- Disappearing Platforms ----------------------------------------------------
-static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
-	var disappear_bodies : Array = []
+static func make_disappear_platforms(w: Node2D, data: Array) -> Array[DisappearPlatform]:
+	var bodies: Array[DisappearPlatform] = []
 	for dd in data:
-		var sb := StaticBody2D.new()
+		var sb := DisappearPlatform.new()
 		sb.position = Vector2(dd[0], dd[1])
-		sb.set_meta("disappear", true)
-		sb.set_meta("on_time", float(dd[4]))
-		sb.set_meta("off_time", float(dd[5]))
-		sb.set_meta("phase", float(dd[6]))
-		sb.set_meta("timer", float(dd[6]))
-		sb.set_meta("is_on", true)
+		sb.on_time = float(dd[4])
+		sb.off_time = float(dd[5])
+		sb.timer = float(dd[6])
 
 		var cs := CollisionShape2D.new()
 		cs.name = "Col"
@@ -330,18 +244,14 @@ static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
 		sb.add_child(cs)
 
 		# Tiled sprites with cyan tint (disappearing visual)
-		var plat_h : float = dd[3]
-		var dscale : float = plat_h / 18.0
-		var dtile_w : float = 18.0 * dscale
-		var dnum := maxi(int(float(dd[2]) / dtile_w), 1)
 		var fill_container := Node2D.new()
 		fill_container.name = "Fill"
+		var dscale := float(dd[3]) / 18.0
+		var dtile_w := 18.0 * dscale
+		var dnum := maxi(int(float(dd[2]) / dtile_w), 1)
 		for i in dnum:
-			var s := Sprite2D.new()
-			s.texture = load(Sprites.GRASS_TOP)
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.scale = Vector2(dscale, dscale)
-			s.modulate = Color(0.4, 0.9, 1.0)  # Cyan tint
+			var s := Sprites.make_sprite(Sprites.GRASS_TOP, Vector2(dscale, dscale))
+			s.modulate = Color(0.4, 0.9, 1.0)
 			s.position = Vector2(
 				-float(dd[2]) * 0.5 + dtile_w * 0.5 + i * dtile_w, 0
 			)
@@ -349,8 +259,8 @@ static func make_disappear_platforms(w: Node2D, data: Array) -> Array:
 		sb.add_child(fill_container)
 
 		w.add_child(sb)
-		disappear_bodies.append(sb)
-	return disappear_bodies
+		bodies.append(sb)
+	return bodies
 
 # -- Spikes (Kenney spike sprite) ----------------------------------------------
 static func make_spikes(w: Node2D, data: Array, on_hazard: Callable) -> void:
@@ -362,7 +272,6 @@ static func make_spikes(w: Node2D, data: Array, on_hazard: Callable) -> void:
 		for i in count:
 			var area := Area2D.new()
 			area.position = Vector2(start_x + i * spacing, sd[1])
-			area.set_meta("hazard", true)
 
 			var cs := CollisionShape2D.new()
 			var tri := ConvexPolygonShape2D.new()
@@ -372,7 +281,6 @@ static func make_spikes(w: Node2D, data: Array, on_hazard: Callable) -> void:
 			cs.shape = tri
 			area.add_child(cs)
 
-			# Kenney spike sprite
 			var s := Sprites.make_spike_sprite()
 			s.position = Vector2(0, -6)
 			area.add_child(s)
@@ -385,7 +293,6 @@ static func make_saw_blades(w: Node2D, data: Array, on_hazard: Callable) -> void
 	for sd in data:
 		var area := Area2D.new()
 		area.position = Vector2(sd[0], sd[1])
-		area.set_meta("hazard", true)
 
 		var cs := CollisionShape2D.new()
 		var circle := CircleShape2D.new()
@@ -393,22 +300,18 @@ static func make_saw_blades(w: Node2D, data: Array, on_hazard: Callable) -> void
 		cs.shape = circle
 		area.add_child(cs)
 
-		# Kenney saw sprite
 		var s := Sprites.make_saw_sprite()
 		area.add_child(s)
 
 		# Positional buzz sound
 		var buzz := AudioStreamPlayer2D.new()
-		var buzz_path := "res://assets/audio/impact/impactMetal_light_001.ogg"
-		if ResourceLoader.exists(buzz_path):
-			buzz.stream = load(buzz_path)
-			buzz.volume_db = -18.0
-			buzz.max_distance = 300.0
-			buzz.autoplay = true
-			# Loop the sound
-			if buzz.stream is AudioStreamOggVorbis:
-				(buzz.stream as AudioStreamOggVorbis).loop = true
-			area.add_child(buzz)
+		buzz.stream = Sprites.SAW_BUZZ
+		buzz.volume_db = -18.0
+		buzz.max_distance = 300.0
+		buzz.autoplay = true
+		if buzz.stream is AudioStreamOggVorbis:
+			(buzz.stream as AudioStreamOggVorbis).loop = true
+		area.add_child(buzz)
 
 		area.body_entered.connect(on_hazard.bind(area))
 		w.add_child(area)
@@ -438,7 +341,6 @@ static func make_trampolines(w: Node2D, data: Array, on_tramp: Callable) -> void
 	for td in data:
 		var area := Area2D.new()
 		area.position = Vector2(td[0], td[1])
-		area.set_meta("trampoline", true)
 
 		var cs := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
@@ -474,8 +376,8 @@ static func make_checkpoints(w: Node2D, data: Array, on_check: Callable) -> void
 	for cd in data:
 		var area := Area2D.new()
 		area.position = Vector2(cd[0], cd[1])
-		area.set_meta("checkpoint", true)
 		area.set_meta("activated", false)
+		area.add_to_group("checkpoints")
 
 		var cs := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
@@ -483,15 +385,10 @@ static func make_checkpoints(w: Node2D, data: Array, on_check: Callable) -> void
 		cs.shape = rect
 		area.add_child(cs)
 
-		# Flag pole sprite
-		var pole := Sprite2D.new()
-		pole.texture = load(Sprites.FLAG_POST)
-		pole.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		pole.scale = Vector2(3, 3)
+		var pole := Sprites.make_sprite(Sprites.FLAG_POST, Vector2(3, 3))
 		pole.position = Vector2(0, -15)
 		area.add_child(pole)
 
-		# Flag triangle
 		var flag := Polygon2D.new()
 		flag.name = "Flag"
 		flag.polygon = PackedVector2Array([
@@ -509,6 +406,7 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 		var area := Area2D.new()
 		area.position = Vector2(pd[0], pd[1])
 		area.set_meta("powerup_type", pd[2])
+		area.add_to_group("powerups")
 
 		var cs := CollisionShape2D.new()
 		var circle := CircleShape2D.new()
@@ -517,15 +415,9 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 		area.add_child(cs)
 
 		var is_shield : bool = pd[2] == "shield"
-
-		# Use heart sprite for shield, diamond for speed
-		var s := Sprite2D.new()
-		s.texture = load(Sprites.HEART if is_shield else Sprites.DIAMOND)
-		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		s.scale = Sprites.SCALE_TILE
+		var s := Sprites.make_sprite(Sprites.HEART if is_shield else Sprites.DIAMOND)
 		area.add_child(s)
 
-		# Float animation
 		var ftw := w.create_tween().set_loops()
 		ftw.tween_property(area, "position:y", pd[1] - 5.0, 0.7).set_trans(Tween.TRANS_SINE)
 		ftw.tween_property(area, "position:y", pd[1] + 5.0, 0.7).set_trans(Tween.TRANS_SINE)
@@ -534,20 +426,65 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 		w.add_child(area)
 
 # -- Coins (Kenney coin sprite) ------------------------------------------------
-# -- Jumping Enemies -----------------------------------------------------------
-static func make_jumpers(w: Node2D, data: Array, on_enemy: Callable) -> void:
-	for jd in data:
+static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
+	for pos in positions:
 		var area := Area2D.new()
+		area.position = pos
+		area.add_to_group("coins")
+
+		var cs     := CollisionShape2D.new()
+		var circle := CircleShape2D.new()
+		circle.radius = 24.0
+		cs.shape = circle
+		area.add_child(cs)
+
+		var s := Sprites.make_coin_sprite()
+		area.add_child(s)
+
+		var float_tw := w.create_tween().set_loops()
+		float_tw.tween_property(area, "position:y", pos.y - 6.0, 0.8).set_trans(Tween.TRANS_SINE)
+		float_tw.tween_property(area, "position:y", pos.y + 6.0, 0.8).set_trans(Tween.TRANS_SINE)
+
+		area.body_entered.connect(on_coin.bind(area))
+		w.add_child(area)
+
+# -- Enemies (Kenney animated red character) -----------------------------------
+static func make_enemies(w: Node2D, data: Array, on_enemy: Callable) -> Array[PatrolEnemy]:
+	var enemies: Array[PatrolEnemy] = []
+	for ed in data:
+		var area := PatrolEnemy.new()
+		area.position = Vector2(ed[0], ed[1])
+		area.patrol_center = float(ed[0])
+		area.patrol_range = float(ed[2])
+		area.patrol_speed = float(ed[3])
+
+		var cs   := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(30, 30)
+		cs.shape  = rect
+		area.add_child(cs)
+
+		var anim := Sprites.make_enemy_animated()
+		anim.name = "Anim"
+		area.add_child(anim)
+
+		area.body_entered.connect(on_enemy.bind(area))
+		w.add_child(area)
+		enemies.append(area)
+	return enemies
+
+# -- Jumping Enemies -----------------------------------------------------------
+static func make_jumpers(w: Node2D, data: Array, on_enemy: Callable) -> Array[JumpingEnemy]:
+	var jumpers: Array[JumpingEnemy] = []
+	for jd in data:
+		var area := JumpingEnemy.new()
 		area.position = Vector2(jd[0], jd[1])
-		area.set_meta("patrol_center", float(jd[0]))
-		area.set_meta("patrol_range", float(jd[4]))
-		area.set_meta("patrol_speed", float(jd[5]))
-		area.set_meta("direction", 1.0)
-		area.set_meta("jumper", true)
-		area.set_meta("jump_interval", float(jd[2]))
-		area.set_meta("jump_force", float(jd[3]))
-		area.set_meta("jump_timer", float(jd[2]))
-		area.set_meta("jumper_vy", 0.0)
+		area.patrol_center = float(jd[0])  # Used as spawn Y for ground clamping
+		area.patrol_range = float(jd[4])
+		area.patrol_speed = float(jd[5])
+		area.jump_interval = float(jd[2])
+		area.jump_force = float(jd[3])
+		area.jump_timer = float(jd[2])
 
 		var cs := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
@@ -555,40 +492,25 @@ static func make_jumpers(w: Node2D, data: Array, on_enemy: Callable) -> void:
 		cs.shape = rect
 		area.add_child(cs)
 
-		# Yellow character (different from red patrol enemies)
-		var anim := AnimatedSprite2D.new()
+		var anim := Sprites.make_jumper_animated()
 		anim.name = "Anim"
-		anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		var frames := SpriteFrames.new()
-		frames.add_animation("walk_right")
-		frames.set_animation_speed("walk_right", 6)
-		frames.set_animation_loop("walk_right", true)
-		frames.add_frame("walk_right", load(Sprites.CHAR + "tile_0020.png"))
-		frames.add_frame("walk_right", load(Sprites.CHAR + "tile_0021.png"))
-		frames.add_frame("walk_right", load(Sprites.CHAR + "tile_0022.png"))
-		frames.add_animation("walk_left")
-		frames.set_animation_speed("walk_left", 6)
-		frames.set_animation_loop("walk_left", true)
-		frames.add_frame("walk_left", load(Sprites.CHAR + "tile_0025.png"))
-		frames.add_frame("walk_left", load(Sprites.CHAR + "tile_0026.png"))
-		if frames.has_animation("default"):
-			frames.remove_animation("default")
-		anim.sprite_frames = frames
-		anim.scale = Sprites.SCALE_CHAR
-		anim.play("walk_right")
 		area.add_child(anim)
 
 		area.body_entered.connect(on_enemy.bind(area))
 		w.add_child(area)
+		jumpers.append(area)
+	return jumpers
 
 # -- Wind Zones ----------------------------------------------------------------
-static func make_wind_zones(w: Node2D, data: Array) -> void:
+static func make_wind_zones(w: Node2D, data: Array) -> Array[WindZone]:
+	var zones: Array[WindZone] = []
 	for wd in data:
-		var area := Area2D.new()
+		var area := WindZone.new()
 		area.position = Vector2(wd[0], wd[1])
-		area.set_meta("wind_zone", true)
-		area.set_meta("wind_dir", float(wd[4]))
-		area.set_meta("wind_strength", float(wd[5]))
+		area.wind_dir = float(wd[4])
+		area.wind_strength = float(wd[5])
+		area.zone_width = float(wd[2])
+		area.zone_height = float(wd[3])
 
 		var cs := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
@@ -603,7 +525,6 @@ static func make_wind_zones(w: Node2D, data: Array) -> void:
 		fill.color = Color(0.4, 0.7, 1.0, 0.08)
 		area.add_child(fill)
 
-		# Arrow particles showing wind direction
 		var arrow_char := ">" if wd[4] > 0 else "<"
 		for i in 5:
 			var lbl := Label.new()
@@ -617,13 +538,14 @@ static func make_wind_zones(w: Node2D, data: Array) -> void:
 			area.add_child(lbl)
 
 		w.add_child(area)
+		zones.append(area)
+	return zones
 
 # -- Keys (collectible) -------------------------------------------------------
 static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 	for kd in data:
 		var area := Area2D.new()
 		area.position = Vector2(kd[0], kd[1])
-		area.set_meta("key_item", true)
 
 		var cs := CollisionShape2D.new()
 		var circle := CircleShape2D.new()
@@ -631,7 +553,6 @@ static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 		cs.shape = circle
 		area.add_child(cs)
 
-		# Key visual: yellow diamond shape
 		var icon := Polygon2D.new()
 		icon.polygon = PackedVector2Array([
 			Vector2(0, -12), Vector2(10, 0), Vector2(0, 12), Vector2(-10, 0),
@@ -639,7 +560,6 @@ static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 		icon.color = Color(1.0, 0.85, 0.15)
 		area.add_child(icon)
 
-		# Inner dot
 		var dot := Polygon2D.new()
 		var pts := PackedVector2Array()
 		for i in 6:
@@ -649,12 +569,10 @@ static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 		dot.color = Color(1.0, 0.95, 0.5)
 		area.add_child(dot)
 
-		# Float animation
 		var ftw := w.create_tween().set_loops()
 		ftw.tween_property(area, "position:y", kd[1] - 6.0, 0.6).set_trans(Tween.TRANS_SINE)
 		ftw.tween_property(area, "position:y", kd[1] + 6.0, 0.6).set_trans(Tween.TRANS_SINE)
 
-		# Glow rotation
 		var spin := w.create_tween().set_loops()
 		spin.tween_property(icon, "rotation", TAU, 3.0)
 
@@ -662,19 +580,16 @@ static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 		w.add_child(area)
 
 # -- Boss Enemy ----------------------------------------------------------------
-static func make_boss(w: Node2D, data: Array, on_enemy: Callable) -> Area2D:
+static func make_boss(w: Node2D, data: Array, on_enemy: Callable) -> BossEnemy:
 	if data.is_empty():
 		return null
-	var area := Area2D.new()
+	var area := BossEnemy.new()
 	area.position = Vector2(data[0], data[1])
-	area.set_meta("boss", true)
-	area.set_meta("boss_hp", int(data[2]))
-	area.set_meta("boss_max_hp", int(data[2]))
-	area.set_meta("boss_speed", float(data[3]))
-	area.set_meta("boss_fire_interval", float(data[4]))
-	area.set_meta("boss_fire_timer", float(data[4]))
-	area.set_meta("boss_dir", 1.0)
-	area.set_meta("patrol_center", float(data[0]))  # For enemy hit detection
+	area.boss_hp = int(data[2])
+	area.boss_max_hp = int(data[2])
+	area.boss_speed = float(data[3])
+	area.boss_fire_interval = float(data[4])
+	area.boss_fire_timer = float(data[4])
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
@@ -682,28 +597,8 @@ static func make_boss(w: Node2D, data: Array, on_enemy: Callable) -> Area2D:
 	cs.shape = rect
 	area.add_child(cs)
 
-	# Big red enemy (scaled up)
-	var anim := AnimatedSprite2D.new()
+	var anim := Sprites.make_boss_animated()
 	anim.name = "Anim"
-	anim.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var frames := SpriteFrames.new()
-	frames.add_animation("walk_right")
-	frames.set_animation_speed("walk_right", 4)
-	frames.set_animation_loop("walk_right", true)
-	frames.add_frame("walk_right", load(Sprites.ENEMY_IDLE_R))
-	frames.add_frame("walk_right", load(Sprites.ENEMY_WALK1_R))
-	frames.add_frame("walk_right", load(Sprites.ENEMY_WALK2_R))
-	frames.add_animation("walk_left")
-	frames.set_animation_speed("walk_left", 4)
-	frames.set_animation_loop("walk_left", true)
-	frames.add_frame("walk_left", load(Sprites.ENEMY_IDLE_L))
-	frames.add_frame("walk_left", load(Sprites.ENEMY_WALK1_L))
-	frames.add_frame("walk_left", load(Sprites.ENEMY_WALK2_L))
-	if frames.has_animation("default"):
-		frames.remove_animation("default")
-	anim.sprite_frames = frames
-	anim.scale = Vector2(4.0, 4.0)  # 2x bigger than normal enemies
-	anim.play("walk_right")
 	area.add_child(anim)
 
 	# HP bar above boss
@@ -725,75 +620,22 @@ static func make_boss(w: Node2D, data: Array, on_enemy: Callable) -> Area2D:
 	w.add_child(area)
 	return area
 
-# -- Coins (Kenney coin sprite) ------------------------------------------------
-static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
-	for pos in positions:
-		var area := Area2D.new()
-		area.position = pos
-		area.set_meta("coin", true)
-
-		var cs     := CollisionShape2D.new()
-		var circle := CircleShape2D.new()
-		circle.radius = 24.0  # Bigger pickup radius
-		cs.shape = circle
-		area.add_child(cs)
-
-		# Kenney coin sprite
-		var s := Sprites.make_coin_sprite()
-		area.add_child(s)
-
-		var float_tw := w.create_tween().set_loops()
-		float_tw.tween_property(area, "position:y", pos.y - 6.0, 0.8).set_trans(Tween.TRANS_SINE)
-		float_tw.tween_property(area, "position:y", pos.y + 6.0, 0.8).set_trans(Tween.TRANS_SINE)
-
-		area.body_entered.connect(on_coin.bind(area))
-		w.add_child(area)
-
-# -- Enemies (Kenney animated red character) -----------------------------------
-static func make_enemies(w: Node2D, data: Array, on_enemy: Callable) -> void:
-	for ed in data:
-		var area := Area2D.new()
-		area.position = Vector2(ed[0], ed[1])
-		area.set_meta("patrol_center", float(ed[0]))
-		area.set_meta("patrol_range", float(ed[2]))
-		area.set_meta("patrol_speed", float(ed[3]))
-		area.set_meta("direction", 1.0)
-
-		var cs   := CollisionShape2D.new()
-		var rect := RectangleShape2D.new()
-		rect.size = Vector2(30, 30)
-		cs.shape  = rect
-		area.add_child(cs)
-
-		# Kenney animated enemy sprite
-		var anim := Sprites.make_enemy_animated()
-		anim.name = "Anim"
-		area.add_child(anim)
-
-		area.body_entered.connect(on_enemy.bind(area))
-		w.add_child(area)
-
 # -- Shooters ------------------------------------------------------------------
-static func make_shooters(w: Node2D, data: Array) -> void:
+static func make_shooters(w: Node2D, data: Array) -> Array[Shooter]:
+	var shooters: Array[Shooter] = []
 	for sd in data:
-		var sb := StaticBody2D.new()
+		var sb := Shooter.new()
 		sb.position = Vector2(sd[0], sd[1])
-		sb.set_meta("shooter", true)
-		sb.set_meta("fire_interval", float(sd[2]))
-		sb.set_meta("bullet_speed", float(sd[3]))
-		sb.set_meta("shoot_dir", float(sd[4]))
-		sb.set_meta("fire_timer", float(sd[2]) * 0.5)
+		sb.fire_interval = float(sd[2])
+		sb.bullet_speed = float(sd[3])
+		sb.shoot_dir = float(sd[4])
+		sb.fire_timer = float(sd[2]) * 0.5
 
-		# Use Kenney red character sprite as turret
-		var turret_tex := Sprites.ENEMY_IDLE_R if sd[4] > 0 else Sprites.ENEMY_IDLE_L
-		var turret := Sprite2D.new()
-		turret.texture = load(turret_tex)
-		turret.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		turret.scale = Sprites.SCALE_CHAR
-		turret.modulate = Color(1.0, 0.5, 0.5)  # Lighter red tint
+		var turret_tex: Texture2D = Sprites.ENEMY_IDLE_R if sd[4] > 0 else Sprites.ENEMY_IDLE_L
+		var turret := Sprites.make_sprite(turret_tex, Sprites.SCALE_CHAR)
+		turret.modulate = Color(1.0, 0.5, 0.5)
 		sb.add_child(turret)
 
-		# Barrel indicator
 		var barrel := ColorRect.new()
 		barrel.size = Vector2(12, 4)
 		barrel.position = Vector2(8, -2) if sd[4] > 0 else Vector2(-20, -2)
@@ -801,15 +643,15 @@ static func make_shooters(w: Node2D, data: Array) -> void:
 		sb.add_child(barrel)
 
 		w.add_child(sb)
+		shooters.append(sb)
+	return shooters
 
 # -- Bullets -------------------------------------------------------------------
-static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bullet_hit: Callable) -> Area2D:
-	var area := Area2D.new()
+static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bullet_hit: Callable) -> Bullet:
+	var area := Bullet.new()
 	area.position = pos
-	area.set_meta("bullet", true)
-	area.set_meta("bullet_dir", dir)
-	area.set_meta("bullet_speed", spd)
-	area.set_meta("lifetime", 5.0)
+	area.bullet_dir = dir
+	area.bullet_speed = spd
 
 	var cs := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -817,12 +659,8 @@ static func spawn_bullet(w: Node2D, pos: Vector2, dir: float, spd: float, on_bul
 	cs.shape = circle
 	area.add_child(cs)
 
-	# Small red diamond sprite as bullet
-	var s := Sprite2D.new()
-	s.texture = load(Sprites.DIAMOND)
-	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	s.scale = Vector2(1.0, 1.0)  # Small
-	s.modulate = Color(1.0, 0.3, 0.2)  # Red tint
+	var s := Sprites.make_sprite(Sprites.DIAMOND, Vector2(1.0, 1.0))
+	s.modulate = Color(1.0, 0.3, 0.2)
 	area.add_child(s)
 
 	area.body_entered.connect(on_bullet_hit.bind(area))
@@ -840,7 +678,6 @@ static func make_player(w: Node2D) -> CharacterBody2D:
 	cs.shape = rs
 	p.add_child(cs)
 
-	# Kenney animated player sprite (replaces all ColorRect visuals)
 	var anim := Sprites.make_player_animated()
 	anim.name = "Anim"
 	p.add_child(anim)
@@ -861,19 +698,12 @@ static func make_player(w: Node2D) -> CharacterBody2D:
 	cam.position_smoothing_speed   = 7.0
 	cam.limit_left   = -100
 	cam.limit_right  = 1380
-	cam.limit_top    = -600  # Allow vertical climb maps
+	cam.limit_top    = -600
 	cam.limit_bottom = 750
 	p.add_child(cam)
 
 	p.set_script(load("res://scripts/Player.gd"))
 
-	# Old ColorRect refs are no longer needed, set to null
-	p.body_rect  = null
-	p.eye_l      = null
-	p.eye_r      = null
-	p.pupil_l    = null
-	p.pupil_r    = null
-	p.mouth_rect = null
 	p.shield_vis = shield
 
 	w.add_child(p)
@@ -893,10 +723,7 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	cl.add_child(level_label)
 
 	# Coin icon next to score
-	var coin_icon := Sprite2D.new()
-	coin_icon.texture = load(Sprites.COIN)
-	coin_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	coin_icon.scale = Vector2(1.5, 1.5)
+	var coin_icon := Sprites.make_sprite(Sprites.COIN, Vector2(1.5, 1.5))
 	coin_icon.position = Vector2(34, 30)
 	cl.add_child(coin_icon)
 
@@ -912,16 +739,12 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	hp_container.name = "HpContainer"
 	hp_container.position = Vector2(20, 52)
 	for i in 3:
-		var heart := Sprite2D.new()
+		var heart := Sprites.make_sprite(Sprites.HEART, Vector2(1.5, 1.5))
 		heart.name = "Heart%d" % i
-		heart.texture = load(Sprites.HEART)
-		heart.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		heart.scale = Vector2(1.5, 1.5)
 		heart.position = Vector2(i * 30, 0)
 		hp_container.add_child(heart)
 	cl.add_child(hp_container)
 
-	# Keep hp_label for compatibility but hide it (used for updates)
 	var hp_label := Label.new()
 	hp_label.text     = ""
 	hp_label.position = Vector2(20, 52)
@@ -929,12 +752,9 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 	cl.add_child(hp_label)
 
 	# Shield icon (hidden until player has shield)
-	var shield_icon := Sprite2D.new()
+	var shield_icon := Sprites.make_sprite(Sprites.HEART, Vector2(1.5, 1.5))
 	shield_icon.name = "ShieldIcon"
-	shield_icon.texture = load(Sprites.HEART)
-	shield_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	shield_icon.scale = Vector2(1.5, 1.5)
-	shield_icon.modulate = Color(0.3, 0.9, 1.0)  # Cyan tint for shield
+	shield_icon.modulate = Color(0.3, 0.9, 1.0)
 	shield_icon.position = Vector2(110, 62)
 	shield_icon.visible = false
 	cl.add_child(shield_icon)
