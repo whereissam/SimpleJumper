@@ -4,7 +4,7 @@ A Godot 4 procedurally generated platformer with infinite random levels, multipl
 
 ![Title Screen](docs/game.png)
 
-https://github.com/user-attachments/assets/docs/game.mp4
+<video src="docs/game.mp4" controls width="100%"></video>
 
 ## Run
 
