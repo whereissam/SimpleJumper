@@ -156,8 +156,8 @@
 
 ## 8. Architecture -- Code Quality
 
-- [ ] Extract pause menu into standalone PauseMenu.gd script
+- [x] Extract pause menu into Effects.gd (World.gd just toggles)
 - [ ] Convert entities to PackedScenes (.tscn) for editor editing
-- [ ] Ice/conveyor/wind as Area2D with body_entered signals (remove per-frame distance checks)
-- [ ] Object pool for bullets (reuse instead of instantiate/free)
+- [x] Ice/conveyor/wind as Area2D with body_entered signals (self-managing, no World loops)
+- [x] Object pool for bullets (BulletPool.gd, 20 pre-allocated, reuse instead of instantiate/free)
 - [ ] Object pool for particle effects (reuse GPUParticles2D nodes)

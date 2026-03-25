@@ -49,6 +49,7 @@ var flying_enemies  : Array = []
 var shielded_enemies: Array = []
 var spawners        : Array = []
 var boss_node       : BossEnemy
+var bullet_pool     : BulletPool
 
 # -- HUD nodes -----------------------------------------------------------------
 var score          := 0
@@ -151,6 +152,11 @@ func _build_world() -> void:
 	total_coins = coin_positions.size()
 	Bld.make_coins(self, coin_positions, _on_coin_entered)
 
+	# Bullet pool (must exist before shooters/boss)
+	bullet_pool = BulletPool.new()
+	bullet_pool.setup(_on_bullet_hit)
+	add_child(bullet_pool)
+
 	patrol_enemies = Bld.make_enemies(self, enemy_data, _on_enemy_hit)
 	jumping_enemies = Bld.make_jumpers(self, level["_jumpers"], _on_enemy_hit)
 	shooters = Bld.make_shooters(self, level["_shooters"])
@@ -180,6 +186,12 @@ func _build_world() -> void:
 	for cb in crumble_bodies:
 		cb.set_player(player_node)
 		cb.crumbled.connect(_on_crumble_collapsed)
+	for ice in ice_platforms:
+		ice.setup_detection(player_node)
+	for conv in conveyors:
+		conv.setup_detection(player_node)
+	for zone in wind_zones:
+		zone.setup_detection(player_node)
 	player_node.hp_changed.connect(_on_hp_changed)
 	player_node.player_died.connect(_on_player_died)
 	player_node.shield_changed.connect(_on_shield_changed)
@@ -252,24 +264,6 @@ func _process(delta: float) -> void:
 		var ms   := int(fmod(elapsed_time, 1.0) * 100)
 		timer_label.text = "⏱  %02d:%02d.%02d" % [mins, secs, ms]
 
-# -- Physics (entities self-update, World handles platform effects) -------------
-func _physics_process(delta: float) -> void:
-	if not player_node:
-		return
-
-	# Ice & conveyor platform effects (require player reference)
-	if player_node.is_on_floor():
-		for ice in ice_platforms:
-			if is_instance_valid(ice):
-				ice.apply_ice(player_node, delta)
-		for conv in conveyors:
-			if is_instance_valid(conv):
-				conv.apply_conveyor(player_node, delta)
-
-	# Wind zones (require player reference)
-	for zone in wind_zones:
-		if is_instance_valid(zone):
-			zone.apply_wind(player_node, delta)
 
 # -- Input ---------------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:
@@ -502,11 +496,10 @@ func _on_shielded_hit(body: Node2D, enemy: Area2D) -> void:
 		player_node.velocity.x = knockback_dir * ENEMY_KNOCKBACK_X
 		player_node.velocity.y = ENEMY_KNOCKBACK_Y
 
-func _on_bullet_hit(body: Node2D, bullet: Area2D) -> void:
+func _on_bullet_hit(body: Node2D, _bullet: Area2D) -> void:
 	if body == player_node:
 		player_node.take_damage(1)
 		player_node.velocity.y = BULLET_BOUNCE_Y
-		bullet.queue_free()
 		Audio.play("bullet_hit", -6.0)
 
 func _on_portal_body_entered(body: Node2D, portal: Area2D) -> void:
@@ -568,10 +561,9 @@ func _on_player_died() -> void:
 			sp.queue_free()
 	spawners.clear()
 
-	# Clean up bullets (they are children of self)
-	for child in get_children():
-		if child is Bullet:
-			child.queue_free()
+	# Return all bullets to pool
+	if bullet_pool:
+		bullet_pool.release_all()
 
 	# Clean up coins and powerups via groups
 	for coin in get_tree().get_nodes_in_group("coins"):
@@ -600,14 +592,14 @@ func _on_player_died() -> void:
 # -- Entity signal callbacks ---------------------------------------------------
 func _on_shooter_fired(shooter: Shooter) -> void:
 	var offset := Vector2(shooter.shoot_dir * 20, 0)
-	Bld.spawn_bullet(self, shooter.global_position + offset, shooter.shoot_dir, shooter.bullet_speed, _on_bullet_hit)
+	bullet_pool.fire(shooter.global_position + offset, shooter.shoot_dir, shooter.bullet_speed)
 	Audio.play("shoot", -10.0)
 
 func _on_boss_fired(boss: BossEnemy) -> void:
 	var dir_to_player := signf(player_node.global_position.x - boss.global_position.x)
 	if dir_to_player == 0:
 		dir_to_player = 1.0
-	Bld.spawn_bullet(self, boss.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0, _on_bullet_hit)
+	bullet_pool.fire(boss.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0)
 	Audio.play("shoot", -8.0)
 
 func _on_spawner_hit(body: Node2D, spawner: Area2D) -> void:

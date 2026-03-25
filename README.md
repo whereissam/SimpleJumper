@@ -2,28 +2,13 @@
 
 A Godot 4 procedurally generated platformer with infinite random levels, multiple hazards, and a full set of movement mechanics.
 
-## Project Structure
+![Title Screen](game.png)
 
-```
-scripts/
-  World.gd      -- Orchestrator: state, process loops, level switching
-  Builder.gd    -- Static helpers that construct all level elements
-  Portals.gd    -- Portal creation, teleport logic, exit portal
-  Minimap.gd    -- Minimap overlay creation and update
-  Colors.gd     -- Shared color constants
-  LevelData.gd  -- Random level generator (6 layout styles)
-  Player.gd     -- Player controller (movement, combat, power-ups)
-scenes/
-  World.tscn    -- Entry scene
-```
-
-## Requirements
-
-- Godot `4.6` with the `GL Compatibility` renderer.
+https://github.com/user-attachments/assets/game.mp4
 
 ## Run
 
-1. Open this folder in Godot.
+1. Open this folder in Godot 4.6.
 2. Load `project.godot`.
 3. Press `F5` to run.
 
@@ -32,49 +17,81 @@ scenes/
 | Key | Action |
 |---|---|
 | `Left / Right` | Move |
-| `Space` or `Up` | Jump (double jump supported) |
-| `Shift` | Dash (short burst, 0.6s cooldown) |
-| `Down` at portal | Teleport |
-| Hold toward wall + jump | Wall slide / wall jump |
-| Scroll wheel | Zoom in / out |
+| `Space` or `Up` | Jump (double jump, triple jump at Lv5) |
+| `Z` | Dash (longer at Lv10) |
+| `Down` | Crouch / drop through / portal enter |
+| `Down + Space` | Drop-jump through one-way platforms |
+| Hold toward wall | Wall slide / wall jump |
+| `Scroll wheel` | Zoom in / out |
+| `Esc` | Pause menu |
+| `M` (paused) | Return to main menu |
 
-### Level Select
+### In-Game Shortcuts
 
 | Key | Action |
 |---|---|
-| `1` | Random **Easy** map |
-| `2` | Random **Medium** map |
-| `3` | Random **Hard** map |
-| `4` | Random **Extreme** map |
-| `R` | Reroll (new random map, same difficulty) |
-| `N` | Next level (slightly harder) |
-| `B` | Back (slightly easier) |
+| `1-4` | Jump to Easy / Medium / Hard / Extreme |
+| `R` | Reroll map |
+| `N / B` | Next / previous level |
 
 ## Features
 
-- **Random level generation** -- 6 layout styles (Zigzag, Spiral, Towers, Scattered, Staircase, Islands), different every launch
-- **Difficulty scaling** -- platforms shrink, enemies get faster, more hazards appear as level number increases
-- **Movement** -- double jump, coyote time, jump buffer, wall slide, wall jump, dash with ghost trail
-- **Hazards** -- spikes, spinning saw blades, enemy bullets, crumbling platforms, disappearing platforms
-- **Enemies** -- patrol slimes (stomp to kill), turret shooters
-- **Items** -- coins, shield power-up (absorbs 1 hit), speed boost
-- **Portals** -- MapleStory-style teleport pads (press Down to warp)
-- **Trampolines** -- super-bounce pads
-- **Checkpoints** -- flag saves respawn position
-- **Health** -- 3 HP with invincibility frames and blink effect
-- **HUD** -- score, health, shield status, speedrun timer, minimap
-- **Level progression** -- collect all coins to spawn an exit portal to the next level
+- **9 procedural layout styles** -- Zigzag, Spiral, Towers, Scattered, Staircase, Islands, Climb, Maze, Sky Islands
+- **Difficulty scaling** -- platforms shrink, enemies get faster, more hazards as level increases
+- **Movement** -- double/triple jump, coyote time, jump buffer, wall slide, wall jump, dash with afterimage
+- **Hazards** -- spikes, saw blades (linear, circular, figure-8), bullets, crumbling/disappearing/ice/conveyor platforms
+- **Enemies** -- patrol (red), jumping (yellow), flying (purple), shielded (blue, 2 stomps), boss (scaled, shoots), enemy spawner
+- **Items** -- coins, keys, shield power-up, speed boost, checkpoints, trampolines, portals, bonus rooms
+- **Menus** -- title screen, level select with star ratings and best times, pause menu
+- **Progression** -- SaveData persistence, unlockable abilities, star ratings (gold/silver/bronze)
+- **Effects** -- GPUParticles2D, squash & stretch, camera shake, freeze frames, screen flash, parallax backgrounds
+- **Sound** -- procedural chiptune music, full SFX set, positional audio
+
+## Project Structure
+
+```
+scripts/
+  World.gd          -- Orchestrator: state, callbacks, level switching
+  Builder.gd        -- Static factory for all level elements
+  Effects.gd        -- Particles, overlays, pause menu
+  Player.gd         -- Player controller (movement, combat, power-ups)
+  LevelData.gd      -- Procedural level generator (9 styles)
+  GameState.gd      -- Autoload: level transitions, save data, unlocks
+  SaveData.gd       -- Resource-based persistence (best times, stars)
+  BulletPool.gd     -- Object pool for bullet reuse
+  TitleScreen.gd    -- Main menu
+  LevelSelect.gd    -- Level select grid
+  AudioManager.gd   -- SFX pool + procedural music
+  Portals.gd        -- Portal creation and teleport logic
+  Minimap.gd        -- Minimap overlay
+  Colors.gd         -- Color constants
+  Sprites.gd        -- Kenney sprite textures and helpers
+  PauseHandler.gd   -- ESC/M key handler (always processes)
+  entities/          -- Self-updating entity scripts
+    PatrolEnemy.gd, JumpingEnemy.gd, FlyingEnemy.gd,
+    ShieldedEnemy.gd, BossEnemy.gd, EnemySpawner.gd,
+    Bullet.gd, Shooter.gd, SawOrbit.gd,
+    CrumblePlatform.gd, DisappearPlatform.gd,
+    IcePlatform.gd, ConveyorPlatform.gd, WindZone.gd
+scenes/
+  TitleScreen.tscn   -- Entry scene (main menu)
+  LevelSelect.tscn   -- Level select
+  World.tscn         -- Game scene
+assets/
+  kenney_pixel/      -- Kenney Pixel Platformer sprites
+  audio/             -- Sound effects
+```
 
 ## Gameplay
 
-- Every run generates a fresh random map with a unique seed shown in the HUD
-- Collect all coins to complete the level; a green exit portal appears
-- Walk to the exit portal and press `Down` to advance to the next level
-- Falling off the map costs 1 HP and respawns at the last checkpoint
-- Losing all HP resets coins, enemies, and the timer
+- Every run generates a fresh random map with a unique seed
+- Collect all coins (and keys on medium+) to spawn an exit portal
+- Walk to the exit portal and press Down to advance
+- Falling off costs 1 HP and respawns at last checkpoint
+- Losing all HP resets coins, enemies, and timer
+- Star ratings based on completion time (gold/silver/bronze)
+- Abilities unlock as you progress (triple jump at Lv5, longer dash at Lv10)
 
-## Notes
+## Requirements
 
-- All levels are procedurally generated from `LevelData.gd` -- no hand-placed scene nodes.
-- The seed is deterministic: same seed + level number = same map layout.
-- `.uid` files are auto-generated by Godot and should not be committed.
+- Godot 4.6 with GL Compatibility renderer
