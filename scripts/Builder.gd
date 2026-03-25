@@ -565,6 +565,44 @@ static func make_shielded(w: Node2D, data: Array, on_enemy: Callable) -> Array:
 		shielded.append(area)
 	return shielded
 
+# -- Enemy Spawners ------------------------------------------------------------
+static func make_spawners(w: Node2D, data: Array, on_stomp: Callable) -> Array:
+	var SpawnerClass : GDScript = load("res://scripts/entities/EnemySpawner.gd")
+	var spawners: Array = []
+	for sd in data:
+		var area : Area2D = SpawnerClass.new()
+		area.position = Vector2(sd[0], sd[1])
+		area.spawn_interval = float(sd[2])
+		area.patrol_range = float(sd[3])
+		area.patrol_speed = float(sd[4])
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(36, 36)
+		cs.shape = rect
+		area.add_child(cs)
+
+		# Pulsing box visual
+		var fill := ColorRect.new()
+		fill.name = "Fill"
+		fill.size = Vector2(36, 36)
+		fill.position = Vector2(-18, -18)
+		fill.color = Color(0.9, 0.3, 0.9, 0.6)
+		area.add_child(fill)
+
+		# Skull icon
+		var icon := Label.new()
+		icon.text = "!"
+		icon.position = Vector2(-6, -14)
+		icon.add_theme_font_size_override("font_size", 22)
+		icon.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+		area.add_child(icon)
+
+		area.body_entered.connect(on_stomp.bind(area))
+		w.add_child(area)
+		spawners.append(area)
+	return spawners
+
 # -- Wind Zones ----------------------------------------------------------------
 static func make_wind_zones(w: Node2D, data: Array) -> Array[WindZone]:
 	var zones: Array[WindZone] = []

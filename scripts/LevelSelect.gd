@@ -104,6 +104,20 @@ func _build_grid() -> void:
 			diff_lbl.add_theme_color_override("font_color", diff_colors[diff_idx])
 			cl.add_child(diff_lbl)
 
+		# Star display
+		if GameState.save.best_stars.has(level_num):
+			var star_count : int = GameState.save.best_stars[level_num]
+			var star_colors := [Color(0.8, 0.5, 0.2), Color(0.75, 0.75, 0.85), Color(1.0, 0.85, 0.1)]
+			var stars_str := ""
+			for _s in star_count:
+				stars_str += "★"
+			var star_lbl := Label.new()
+			star_lbl.text = stars_str
+			star_lbl.position = Vector2(x + CELL_W - 50, y + 8)
+			star_lbl.add_theme_font_size_override("font_size", 18)
+			star_lbl.add_theme_color_override("font_color", star_colors[star_count - 1])
+			cl.add_child(star_lbl)
+
 		if has_time:
 			var time_val : float = GameState.save.best_times[level_num]
 			var mins := int(time_val) / 60

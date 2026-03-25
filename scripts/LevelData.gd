@@ -459,6 +459,16 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 				if int(sp[2]) > 80:
 					shielded.append([sp[0], sp[1] - 22, rng.randi_range(30, int(sp[2] * 0.4)), 25 + int(difficulty * 35), 2])
 
+	# ── Enemy spawners [x, y, interval, patrol_range, patrol_speed] ──────
+	var spawners : Array = []
+	if difficulty > 0.55:
+		var num_spawners := rng.randi_range(1, 1 + int(difficulty))
+		for i in num_spawners:
+			if platforms.size() > 3:
+				var idx := rng.randi_range(1, platforms.size() - 1)
+				var sp : Array = platforms[idx]
+				spawners.append([sp[0], sp[1] - 22, 4.0 - difficulty * 1.5, rng.randi_range(30, 60), 30 + int(difficulty * 30)])
+
 	# ── Safe zones: remove hazards near portals and spawn point ──────────
 	var safe_points : Array = [Vector2(640, 630)]  # Player spawn
 	for pd in portals:
@@ -520,4 +530,25 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		"boss": boss,
 		"flyers": flyers,
 		"shielded": shielded,
+		"spawners": spawners,
+		"bonus_room": _generate_bonus_room(rng, difficulty, platforms),
+	}
+
+static func _generate_bonus_room(rng: RandomNumberGenerator, difficulty: float, platforms: Array) -> Dictionary:
+	## 30% chance on medium+ difficulty. Returns empty dict if no bonus room.
+	if difficulty < 0.25 or rng.randf() > 0.3 or platforms.size() < 4:
+		return {}
+	# Pick a random platform for the hidden entrance
+	var idx := rng.randi_range(1, platforms.size() - 1)
+	var ep : Array = platforms[idx]
+	# Bonus room is off-screen above, with a platform and coins
+	var room_x := rng.randi_range(300, 980)
+	var room_y := -200
+	var num_coins := 5 + int(difficulty * 8)
+	return {
+		"entrance_x": ep[0] + rng.randi_range(-20, 20),
+		"entrance_y": ep[1] - 25,
+		"room_x": room_x,
+		"room_y": room_y,
+		"num_coins": num_coins,
 	}

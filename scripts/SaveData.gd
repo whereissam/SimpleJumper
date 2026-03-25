@@ -5,6 +5,7 @@ extends Resource
 @export var highest_level: int = 1
 @export var total_coins: int = 0
 @export var best_times: Dictionary = {}  # level_num (int) -> time in seconds (float)
+@export var best_stars: Dictionary = {}  # level_num (int) -> star count (1-3)
 
 const SAVE_PATH: String = "user://save.tres"
 

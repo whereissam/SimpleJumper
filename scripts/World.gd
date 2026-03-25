@@ -1,9 +1,8 @@
 extends Node2D
 
-const Colors  = preload("res://scripts/Colors.gd")
-const Builder = preload("res://scripts/Builder.gd")
-const Portals = preload("res://scripts/Portals.gd")
-const Minimap = preload("res://scripts/Minimap.gd")
+const Bld = preload("res://scripts/Builder.gd")
+const Ptl = preload("res://scripts/Portals.gd")
+const Mmp = preload("res://scripts/Minimap.gd")
 
 # -- Constants -----------------------------------------------------------------
 const PLAYER_SPAWN      := Vector2(640, 630)
@@ -48,6 +47,7 @@ var conveyors       : Array[ConveyorPlatform] = []
 var wind_zones      : Array[WindZone] = []
 var flying_enemies  : Array = []
 var shielded_enemies: Array = []
+var spawners        : Array = []
 var boss_node       : BossEnemy
 
 # -- HUD nodes -----------------------------------------------------------------
@@ -67,6 +67,7 @@ var minimap_player : ColorRect
 var player_node    : Player
 var elapsed_time   := 0.0
 var level_complete := false
+var death_count    := 0
 var portal_pairs   : Array = []
 var portal_cooldown_timer := 0.0
 var player_in_portals : Array = []
@@ -128,44 +129,54 @@ func _load_level(num: int) -> void:
 	level["_boss"] = boss_data
 	level["_flyers"] = flyer_data
 	level["_shielded"] = shielded_data
+	level["_spawners"] = level.get("spawners", [])
 
 func _build_world() -> void:
-	Builder.make_background(self, level)
-	Builder.make_walls(self, wall_data)
-	Builder.make_platforms(self, platform_data)
-	Builder.make_moving_platforms(self, moving_platform_data)
-	ice_platforms = Builder.make_ice_platforms(self, level["_ice"])
-	conveyors = Builder.make_conveyors(self, level["_conveyors"])
-	crumble_bodies = Builder.make_crumble_platforms(self, level["_crumble"])
-	Builder.make_disappear_platforms(self, level["_disappear"])
-	Builder.make_spikes(self, spike_data, _on_hazard_hit)
-	Builder.make_saw_blades(self, saw_data, _on_hazard_hit)
-	Builder.make_trampolines(self, trampoline_data, _on_trampoline_hit)
-	Builder.make_checkpoints(self, checkpoint_data, _on_checkpoint_hit)
-	portal_pairs = Portals.make_portals(self, portal_data, _on_portal_body_entered, _on_portal_body_exited)
-	Builder.make_powerups(self, powerup_data, _on_powerup_hit)
+	Bld.make_background(self, level)
+	Bld.make_walls(self, wall_data)
+	Bld.make_platforms(self, platform_data)
+	Bld.make_moving_platforms(self, moving_platform_data)
+	ice_platforms = Bld.make_ice_platforms(self, level["_ice"])
+	conveyors = Bld.make_conveyors(self, level["_conveyors"])
+	crumble_bodies = Bld.make_crumble_platforms(self, level["_crumble"])
+	Bld.make_disappear_platforms(self, level["_disappear"])
+	Bld.make_spikes(self, spike_data, _on_hazard_hit)
+	Bld.make_saw_blades(self, saw_data, _on_hazard_hit)
+	Bld.make_trampolines(self, trampoline_data, _on_trampoline_hit)
+	Bld.make_checkpoints(self, checkpoint_data, _on_checkpoint_hit)
+	portal_pairs = Ptl.make_portals(self, portal_data, _on_portal_body_entered, _on_portal_body_exited)
+	Bld.make_powerups(self, powerup_data, _on_powerup_hit)
 
 	# Coins -- set total_coins before creating HUD
 	total_coins = coin_positions.size()
-	Builder.make_coins(self, coin_positions, _on_coin_entered)
+	Bld.make_coins(self, coin_positions, _on_coin_entered)
 
-	patrol_enemies = Builder.make_enemies(self, enemy_data, _on_enemy_hit)
-	jumping_enemies = Builder.make_jumpers(self, level["_jumpers"], _on_enemy_hit)
-	shooters = Builder.make_shooters(self, level["_shooters"])
-	wind_zones = Builder.make_wind_zones(self, level["_wind_zones"])
-	flying_enemies = Builder.make_flyers(self, level["_flyers"], _on_enemy_hit)
-	shielded_enemies = Builder.make_shielded(self, level["_shielded"], _on_shielded_hit)
+	patrol_enemies = Bld.make_enemies(self, enemy_data, _on_enemy_hit)
+	jumping_enemies = Bld.make_jumpers(self, level["_jumpers"], _on_enemy_hit)
+	shooters = Bld.make_shooters(self, level["_shooters"])
+	wind_zones = Bld.make_wind_zones(self, level["_wind_zones"])
+	flying_enemies = Bld.make_flyers(self, level["_flyers"], _on_enemy_hit)
+	shielded_enemies = Bld.make_shielded(self, level["_shielded"], _on_shielded_hit)
+	spawners = Bld.make_spawners(self, level["_spawners"], _on_spawner_hit)
 	if key_data.size() > 0:
-		Builder.make_keys(self, key_data, _on_key_collected)
-	boss_node = Builder.make_boss(self, level["_boss"], _on_boss_hit)
+		Bld.make_keys(self, key_data, _on_key_collected)
+	boss_node = Bld.make_boss(self, level["_boss"], _on_boss_hit)
 
-	player_node = Builder.make_player(self)
+	# Bonus room
+	var bonus_data : Dictionary = level.get("bonus_room", {})
+	if not bonus_data.is_empty():
+		_build_bonus_room(bonus_data)
+
+	player_node = Bld.make_player(self)
+	player_node.apply_unlocks(GameState.save.highest_level)
 
 	# Connect entity signals
 	for shooter in shooters:
 		shooter.fired.connect(_on_shooter_fired)
 	if boss_node:
 		boss_node.fired.connect(_on_boss_fired)
+	for sp in spawners:
+		sp.enemy_spawned.connect(_on_spawner_spawn)
 	for cb in crumble_bodies:
 		cb.set_player(player_node)
 		cb.crumbled.connect(_on_crumble_collapsed)
@@ -173,7 +184,7 @@ func _build_world() -> void:
 	player_node.player_died.connect(_on_player_died)
 	player_node.shield_changed.connect(_on_shield_changed)
 
-	var hud := Builder.make_hud(self, total_coins, level, current_level)
+	var hud := Bld.make_hud(self, total_coins, level, current_level)
 	score_label  = hud["score_label"]
 	hp_label     = hud["hp_label"]
 	hp_container = hud["hp_container"]
@@ -211,7 +222,7 @@ func _build_world() -> void:
 	Audio.start_music()
 	_fade_in()
 
-	var mm := Minimap.make_minimap(
+	var mm := Mmp.make_minimap(
 		hud["hud_layer"], platform_data, wall_data,
 		spike_data, portal_data, checkpoint_data
 	)
@@ -223,8 +234,8 @@ func _process(delta: float) -> void:
 	if not player_node or not timer_label:
 		return
 	portal_cooldown_timer = maxf(portal_cooldown_timer - delta, 0.0)
-	Portals.check_portal_input(portal_pairs, player_in_portals, portal_cooldown_timer, player_node, _teleport_to)
-	Minimap.update(minimap_player, player_node)
+	Ptl.check_portal_input(portal_pairs, player_in_portals, portal_cooldown_timer, player_node, _teleport_to)
+	Mmp.update(minimap_player, player_node)
 
 	if player_near_exit and Input.is_action_just_pressed("ui_down"):
 		player_near_exit = false
@@ -322,10 +333,15 @@ func _fade_and_reload() -> void:
 	tw.tween_callback(get_tree().reload_current_scene)
 
 func _go_next_level() -> void:
+	var stars := GameState.calc_stars(current_level, elapsed_time)
+	Effects.show_level_complete(self, stars, elapsed_time)
 	GameState.complete_level(current_level, elapsed_time)
 	GameState.session_coins += score
 	current_level += 1
+	# Delay transition to show overlay
+	await get_tree().create_timer(1.5).timeout
 	_switch_level(current_level)
+
 
 # -- Signal callbacks ----------------------------------------------------------
 func _on_hazard_hit(body: Node2D, _hazard: Area2D) -> void:
@@ -391,7 +407,7 @@ func _on_key_collected(body: Node2D, key_area: Area2D) -> void:
 		score_label.text = "Complete! Go to EXIT portal!"
 		_spawn_exit_portal()
 		Audio.play("level_complete", -2.0)
-	_spawn_sparkle_burst(key_area.global_position, Color(1.0, 0.85, 0.15, 0.9), 8, 30.0)
+	Effects.spawn_sparkle_burst(self, key_area.global_position, Color(1.0, 0.85, 0.15, 0.9), 8, 30.0)
 
 func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 	if body != player_node:
@@ -404,7 +420,7 @@ func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 		_freeze_frame(0.08)
 		player_node.camera_shake(6.0, 0.2)
 		if remaining_hp <= 0:
-			_spawn_boss_death_effect(boss.global_position)
+			Effects.spawn_boss_death(self, boss.global_position)
 			player_node.camera_shake(8.0, 0.3)
 			_freeze_frame(0.12)
 			_kill_enemy(boss)
@@ -427,14 +443,14 @@ func _on_powerup_hit(body: Node2D, powerup: Area2D) -> void:
 	else:
 		player_node.grant_speed_boost(SPEED_BOOST_DURATION)
 
-	_spawn_powerup_effect(powerup.global_position, ptype)
+	Effects.spawn_powerup_effect(self, powerup.global_position, ptype)
 	powerup.queue_free()
 	Audio.play("powerup", -4.0)
 
 func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 	if body != player_node:
 		return
-	_spawn_coin_sparkle(coin.global_position)
+	Effects.spawn_coin_sparkle(self, coin.global_position)
 	coin.queue_free()
 	score += 1
 	Audio.play("coin", -6.0, randf_range(0.9, 1.1))
@@ -519,6 +535,8 @@ func _on_shield_changed(has: bool) -> void:
 		shield_icon.visible = has
 
 func _on_player_died() -> void:
+	death_count += 1
+	Effects.show_death_overlay(self, death_count, score, total_coins, elapsed_time)
 	score = 0
 	elapsed_time = 0.0
 	level_complete = false
@@ -545,6 +563,11 @@ func _on_player_died() -> void:
 			se.queue_free()
 	shielded_enemies.clear()
 
+	for sp in spawners:
+		if is_instance_valid(sp):
+			sp.queue_free()
+	spawners.clear()
+
 	# Clean up bullets (they are children of self)
 	for child in get_children():
 		if child is Bullet:
@@ -570,25 +593,49 @@ func _on_player_died() -> void:
 	player_node.respawn_pos = PLAYER_SPAWN
 
 	await get_tree().process_frame
-	Builder.make_coins(self, coin_positions, _on_coin_entered)
-	patrol_enemies = Builder.make_enemies(self, enemy_data, _on_enemy_hit)
-	Builder.make_powerups(self, powerup_data, _on_powerup_hit)
+	Bld.make_coins(self, coin_positions, _on_coin_entered)
+	patrol_enemies = Bld.make_enemies(self, enemy_data, _on_enemy_hit)
+	Bld.make_powerups(self, powerup_data, _on_powerup_hit)
 
 # -- Entity signal callbacks ---------------------------------------------------
 func _on_shooter_fired(shooter: Shooter) -> void:
 	var offset := Vector2(shooter.shoot_dir * 20, 0)
-	Builder.spawn_bullet(self, shooter.global_position + offset, shooter.shoot_dir, shooter.bullet_speed, _on_bullet_hit)
+	Bld.spawn_bullet(self, shooter.global_position + offset, shooter.shoot_dir, shooter.bullet_speed, _on_bullet_hit)
 	Audio.play("shoot", -10.0)
 
 func _on_boss_fired(boss: BossEnemy) -> void:
 	var dir_to_player := signf(player_node.global_position.x - boss.global_position.x)
 	if dir_to_player == 0:
 		dir_to_player = 1.0
-	Builder.spawn_bullet(self, boss.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0, _on_bullet_hit)
+	Bld.spawn_bullet(self, boss.global_position + Vector2(dir_to_player * 35, -10), dir_to_player, 200.0, _on_bullet_hit)
 	Audio.play("shoot", -8.0)
 
+func _on_spawner_hit(body: Node2D, spawner: Area2D) -> void:
+	if body != player_node:
+		return
+	if player_node.velocity.y > 0 and player_node.global_position.y < spawner.global_position.y - ENEMY_STOMP_OFFSET:
+		_kill_enemy(spawner)
+		spawners.erase(spawner)
+		player_node.stomp_bounce()
+		Audio.play("stomp", -2.0)
+		_freeze_frame(0.08)
+		player_node.camera_shake(5.0, 0.2)
+	else:
+		player_node.take_damage(1)
+		var knockback_dir := signf(player_node.global_position.x - spawner.global_position.x)
+		if knockback_dir == 0:
+			knockback_dir = 1
+		player_node.velocity.x = knockback_dir * ENEMY_KNOCKBACK_X
+		player_node.velocity.y = ENEMY_KNOCKBACK_Y
+
+func _on_spawner_spawn(spawner: Area2D, pos: Vector2) -> void:
+	# Create a patrol enemy at the spawn position
+	var spawn_data := [[int(pos.x), int(pos.y), spawner.patrol_range, spawner.patrol_speed]]
+	var new_enemies := Bld.make_enemies(self, spawn_data, _on_enemy_hit)
+	patrol_enemies.append_array(new_enemies)
+
 func _on_crumble_collapsed(platform: CrumblePlatform) -> void:
-	_spawn_crumble_particles(Vector2(platform.origin_x, platform.origin_y), platform.width)
+	Effects.spawn_crumble(self, Vector2(platform.origin_x, platform.origin_y))
 	Audio.play("crumble", -6.0)
 
 # -- Teleportation -------------------------------------------------------------
@@ -596,75 +643,17 @@ func _teleport_to(target: Vector2) -> void:
 	portal_cooldown_timer = PORTAL_COOLDOWN
 	player_in_portals.clear()
 	Audio.play("portal", -4.0)
-	Portals.spawn_teleport_effect(self, player_node.global_position)
+	Ptl.spawn_teleport_effect(self, player_node.global_position)
 	player_node.position = target + Vector2(0, -10)
 	player_node.velocity = Vector2.ZERO
 	player_node.invincible = 1.0
-	Portals.spawn_teleport_effect(self, target + Vector2(0, -10))
+	Ptl.spawn_teleport_effect(self, target + Vector2(0, -10))
 
 # -- Exit portal ---------------------------------------------------------------
 func _spawn_exit_portal() -> void:
-	next_portal = Portals.spawn_exit_portal(self, _on_exit_portal_entered)
+	next_portal = Ptl.spawn_exit_portal(self, _on_exit_portal_entered)
 
-# -- Particle effects ----------------------------------------------------------
-func _spawn_powerup_effect(pos: Vector2, ptype: String) -> void:
-	var color := Colors.SHIELD_CLR if ptype == "shield" else Colors.SPEED_CLR
-	_spawn_sparkle_burst(pos, color, 12, 35.0)
-
-func _spawn_sparkle_burst(pos: Vector2, color: Color, count: int, radius: float) -> void:
-	for i in count:
-		var p := ColorRect.new()
-		p.size = Vector2(4, 4)
-		p.color = color
-		p.position = pos
-		p.z_index = 5
-		add_child(p)
-
-		var angle := i * TAU / count
-		var target := pos + Vector2(cos(angle) * radius, sin(angle) * radius)
-		var tw := get_tree().create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(p, "position", target, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(p, "modulate:a", 0.0, 0.4)
-		tw.set_parallel(false)
-		tw.tween_callback(p.queue_free)
-
-func _spawn_coin_sparkle(pos: Vector2) -> void:
-	_spawn_burst(pos, Color(1.0, 0.85, 0.1), 12, 80.0, 0.4)
-
-func _spawn_burst(pos: Vector2, color: Color, amount: int, speed: float, lifetime: float) -> void:
-	var particles := GPUParticles2D.new()
-	particles.position = pos
-	particles.z_index = 10
-	particles.amount = amount
-	particles.lifetime = lifetime
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-	particles.emitting = true
-
-	var mat := ParticleProcessMaterial.new()
-	mat.direction = Vector3(0, -1, 0)
-	mat.spread = 180.0
-	mat.initial_velocity_min = speed * 0.5
-	mat.initial_velocity_max = speed
-	mat.gravity = Vector3(0, 200, 0)
-	mat.scale_min = 3.0
-	mat.scale_max = 6.0
-	mat.color = color
-
-	var gradient := Gradient.new()
-	gradient.set_color(0, color)
-	gradient.set_color(1, Color(color.r, color.g, color.b, 0.0))
-	var grad_tex := GradientTexture1D.new()
-	grad_tex.gradient = gradient
-	mat.color_ramp = grad_tex
-
-	particles.process_material = mat
-	add_child(particles)
-
-	var tw := get_tree().create_tween()
-	tw.tween_interval(lifetime + 0.1)
-	tw.tween_callback(particles.queue_free)
+# -- Effects (delegated to Effects.gd) -----------------------------------------
 
 func _kill_enemy(enemy: Area2D) -> void:
 	var pos := enemy.global_position
@@ -673,10 +662,10 @@ func _kill_enemy(enemy: Area2D) -> void:
 	if anim:
 		var tw := get_tree().create_tween()
 		tw.tween_property(anim, "scale", Vector2(3.5, 0.3), 0.1)
-		tw.tween_callback(_spawn_enemy_death_particles.bind(pos))
+		tw.tween_callback(_on_enemy_death_fx.bind(pos))
 		tw.tween_callback(enemy.queue_free)
 	else:
-		_spawn_enemy_death_particles(pos)
+		_on_enemy_death_fx(pos)
 		enemy.queue_free()
 
 	# Remove from typed arrays
@@ -689,29 +678,55 @@ func _kill_enemy(enemy: Area2D) -> void:
 	elif enemy in shielded_enemies:
 		shielded_enemies.erase(enemy)
 
-func _spawn_enemy_death_particles(pos: Vector2) -> void:
-	_spawn_burst(pos, Colors.ENEMY_CLR, 16, 120.0, 0.5)
+func _on_enemy_death_fx(pos: Vector2) -> void:
+	Effects.spawn_enemy_death(self, pos)
 
-func _spawn_boss_death_effect(pos: Vector2) -> void:
-	# Big red burst
-	_spawn_burst(pos, Colors.ENEMY_CLR, 32, 200.0, 0.7)
-	# White flash burst
-	_spawn_burst(pos, Color(1, 1, 1, 0.9), 16, 150.0, 0.4)
-	# Screen flash
-	var flash := ColorRect.new()
-	flash.color = Color(1, 0.3, 0.2, 0.5)
-	flash.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cl := CanvasLayer.new()
-	cl.layer = 50
-	cl.add_child(flash)
-	add_child(cl)
-	var tw := get_tree().create_tween()
-	tw.tween_property(flash, "color:a", 0.0, 0.3)
-	tw.tween_callback(cl.queue_free)
+func _build_bonus_room(data: Dictionary) -> void:
+	var entrance_pos := Vector2(data["entrance_x"], data["entrance_y"])
+	var room_pos := Vector2(data["room_x"], data["room_y"])
+	var num_coins : int = data["num_coins"]
 
-func _spawn_crumble_particles(pos: Vector2, _w: float) -> void:
-	_spawn_burst(pos, Colors.CRUMBLE_FILL, 10, 60.0, 0.5)
+	# Hidden entrance portal (small, subtle green glow)
+	var entrance := Ptl._create_portal(
+		self, entrance_pos,
+		Color(0.1, 0.8, 0.3, 0.4), Color(0.2, 1.0, 0.4, 0.15),
+		_on_portal_body_entered, _on_portal_body_exited
+	)
+	entrance.scale = Vector2(0.6, 0.6)
+
+	# Return portal in bonus room
+	var exit := Ptl._create_portal(
+		self, room_pos + Vector2(0, -10),
+		Color(0.1, 0.8, 0.3, 0.4), Color(0.2, 1.0, 0.4, 0.15),
+		_on_portal_body_entered, _on_portal_body_exited
+	)
+
+	portal_pairs.append({
+		"area_a": entrance, "prompt_a": Ptl._create_portal_prompt(self, entrance_pos),
+		"area_b": exit, "prompt_b": Ptl._create_portal_prompt(self, room_pos + Vector2(0, -10)),
+	})
+
+	# Bonus room platform
+	Bld._create_static_platform(self, [data["room_x"], data["room_y"] + 30, 400, 22])
+
+	# "BONUS" label
+	var bonus_lbl := Label.new()
+	bonus_lbl.text = "BONUS ROOM"
+	bonus_lbl.position = room_pos + Vector2(-50, -60)
+	bonus_lbl.add_theme_font_size_override("font_size", 20)
+	bonus_lbl.add_theme_color_override("font_color", Color(0.2, 1.0, 0.4, 0.8))
+	add_child(bonus_lbl)
+
+	# Scatter coins in the bonus room
+	var bonus_coins : Array = []
+	for i in num_coins:
+		var cx : int = int(data["room_x"]) + (i - num_coins / 2) * 30
+		var cy : int = int(data["room_y"]) - 5
+		bonus_coins.append(Vector2(cx, cy))
+		coin_positions.append(Vector2(cx, cy))
+	Bld.make_coins(self, bonus_coins, _on_coin_entered)
+	total_coins += num_coins
+
 
 # -- Freeze frame (hit-stop) ---------------------------------------------------
 func _freeze_frame(duration: float) -> void:
@@ -735,87 +750,8 @@ func _toggle_pause_menu() -> void:
 		pause_menu = null
 		get_tree().paused = false
 		return
-
 	get_tree().paused = true
-
-	pause_menu = CanvasLayer.new()
-	pause_menu.layer = 200
-	pause_menu.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(pause_menu)
-
-	var overlay := ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.7)
-	overlay.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
-	pause_menu.add_child(overlay)
-
-	var panel := ColorRect.new()
-	panel.color = Color(0.1, 0.1, 0.2, 0.95)
-	panel.size = Vector2(500, 480)
-	panel.position = Vector2(390, 120)
-	pause_menu.add_child(panel)
-
-	var title := Label.new()
-	title.text = "PAUSED"
-	title.position = Vector2(555, 135)
-	title.add_theme_font_size_override("font_size", 36)
-	title.add_theme_color_override("font_color", Color(1, 0.95, 0.55))
-	pause_menu.add_child(title)
-
-	var controls : Array = [
-		["Move", "Arrow Keys / ← →"],
-		["Jump", "Space / Up Arrow"],
-		["Double Jump", "Jump again in air"],
-		["Dash", "Z"],
-		["Crouch", "Hold Down Arrow"],
-		["Drop Through", "Tap Down on platform"],
-		["Wall Slide", "Hold toward wall in air"],
-		["Wall Jump", "Jump while wall sliding"],
-		["Portal", "Down Arrow near portal"],
-		["Zoom", "Scroll Wheel"],
-		["", ""],
-		["Easy Map", "1"],
-		["Medium Map", "2"],
-		["Hard Map", "3"],
-		["Extreme Map", "4"],
-		["Reroll Map", "R"],
-		["Next Level", "N"],
-		["Prev Level", "B"],
-	]
-
-	var y_pos := 185
-	for entry in controls:
-		if entry[0] == "":
-			y_pos += 8
-			continue
-		var action_lbl := Label.new()
-		action_lbl.text = entry[0]
-		action_lbl.position = Vector2(420, y_pos)
-		action_lbl.add_theme_font_size_override("font_size", 16)
-		action_lbl.add_theme_color_override("font_color", Color(0.8, 0.85, 1.0))
-		pause_menu.add_child(action_lbl)
-
-		var key_lbl := Label.new()
-		key_lbl.text = entry[1]
-		key_lbl.position = Vector2(620, y_pos)
-		key_lbl.add_theme_font_size_override("font_size", 16)
-		key_lbl.add_theme_color_override("font_color", Color(1, 0.9, 0.5))
-		pause_menu.add_child(key_lbl)
-
-		y_pos += 22
-
-	var menu_lbl := Label.new()
-	menu_lbl.text = "M  Main Menu"
-	menu_lbl.position = Vector2(420, y_pos + 4)
-	menu_lbl.add_theme_font_size_override("font_size", 16)
-	menu_lbl.add_theme_color_override("font_color", Color(0.9, 0.5, 0.5))
-	pause_menu.add_child(menu_lbl)
-
-	var hint := Label.new()
-	hint.text = "Press ESC to resume"
-	hint.position = Vector2(510, y_pos + 15)
-	hint.add_theme_font_size_override("font_size", 18)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.6))
-	pause_menu.add_child(hint)
+	pause_menu = Effects.create_pause_menu(self)
 
 # -- Vignette (low HP warning) -------------------------------------------------
 func _create_vignette(hud_layer: CanvasLayer) -> void:

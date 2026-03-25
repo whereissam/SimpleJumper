@@ -6,19 +6,24 @@ const SPEED         := 295.0
 const JUMP_VEL      := -550.0
 const AIR_JUMP      := -470.0
 const GRAVITY       := 1080.0
-const MAX_JUMPS     := 2
+var   max_jumps     := 2
 
 # ── Dash ─────────────────────────────────────────────────────────────────────
 const DASH_SPEED    := 700.0
-const DASH_DURATION := 0.15
+var   dash_duration := 0.15
 const DASH_COOLDOWN := 0.6
+
+# ── Unlock thresholds ────────────────────────────────────────────────────────
+const TRIPLE_JUMP_LEVEL := 5   # Unlock triple jump at level 5
+const LONG_DASH_LEVEL   := 10  # Unlock longer dash at level 10
+const LONG_DASH_DURATION := 0.25
 
 # ── Wall Jump ────────────────────────────────────────────────────────────────
 const WALL_SLIDE_SPEED := 120.0
 const WALL_JUMP_VEL    := Vector2(380.0, -480.0)
 
 # ── State ────────────────────────────────────────────────────────────────────
-var jumps_left     := MAX_JUMPS
+var jumps_left     := 2
 var coyote_timer   := 0.0
 var jump_buffer    := 0.0
 var facing         := 1       # 1 = right, -1 = left
@@ -80,6 +85,13 @@ signal hp_changed(new_hp: int)
 signal player_died
 signal shield_changed(has: bool)
 
+func apply_unlocks(highest_level: int) -> void:
+	if highest_level >= TRIPLE_JUMP_LEVEL:
+		max_jumps = 3
+		jumps_left = 3
+	if highest_level >= LONG_DASH_LEVEL:
+		dash_duration = LONG_DASH_DURATION
+
 func _unhandled_input(event: InputEvent) -> void:
 	# Scroll wheel zoom
 	if event is InputEventMouseButton:
@@ -124,7 +136,7 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("dash") and dash_cooldown <= 0.0 and not is_dashing:
 		is_dashing  = true
-		dash_timer  = DASH_DURATION
+		dash_timer  = dash_duration
 		dash_dir    = facing
 		dash_cooldown = DASH_COOLDOWN
 		_spawn_dash_ghost()
@@ -142,7 +154,7 @@ func _physics_process(delta: float) -> void:
 
 	# ── Gravity & Coyote Time ─────────────────────────────────────────────
 	if is_on_floor():
-		jumps_left   = MAX_JUMPS
+		jumps_left   = max_jumps
 		coyote_timer = 0.13
 		is_wall_sliding = false
 	else:
@@ -170,8 +182,18 @@ func _physics_process(delta: float) -> void:
 		jump_buffer = 0.15
 	jump_buffer = maxf(jump_buffer - delta, 0.0)
 
+	# ── Down + Jump = drop through with downward push ────────────────────
+	if jump_buffer > 0.0 and Input.is_action_pressed("ui_down") and is_on_floor():
+		var col : Node = get_node_or_null("CollisionShape2D")
+		if col:
+			(col as CollisionShape2D).disabled = true
+			drop_timer = 0.18
+			position.y += 4
+			velocity.y = 180.0
+			jump_buffer = 0.0
+
 	# ── Execute jump ──────────────────────────────────────────────────────
-	if jump_buffer > 0.0:
+	elif jump_buffer > 0.0:
 		if is_wall_sliding:
 			var wall_dir := -1 if _wall_on_right() else 1
 			velocity.x   = WALL_JUMP_VEL.x * wall_dir
@@ -183,7 +205,7 @@ func _physics_process(delta: float) -> void:
 			Audio.play("jump", -4.0)
 		elif coyote_timer > 0.0:
 			velocity.y   = JUMP_VEL
-			jumps_left   = MAX_JUMPS - 1
+			jumps_left   = max_jumps - 1
 			coyote_timer = 0.0
 			jump_buffer  = 0.0
 			_spawn_jump_dust()
@@ -251,12 +273,12 @@ func _physics_process(delta: float) -> void:
 		take_damage(1)
 		position   = respawn_pos
 		velocity   = Vector2.ZERO
-		jumps_left = MAX_JUMPS
+		jumps_left = max_jumps
 
 # ── Trampoline bounce ────────────────────────────────────────────────────────
 func trampoline_bounce() -> void:
 	velocity.y = JUMP_VEL * 1.5
-	jumps_left = MAX_JUMPS
+	jumps_left = max_jumps
 
 # ── Damage ───────────────────────────────────────────────────────────────────
 func take_damage(amount: int) -> void:
@@ -320,7 +342,7 @@ func _finish_death() -> void:
 	# Respawn
 	position   = respawn_pos
 	velocity   = Vector2.ZERO
-	jumps_left = MAX_JUMPS
+	jumps_left = max_jumps
 	invincible = INVINCIBLE_AFTER_RESPAWN
 	set_physics_process(true)
 	player_died.emit()

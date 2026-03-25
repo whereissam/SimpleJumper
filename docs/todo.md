@@ -132,25 +132,25 @@
 ### Menus & UI
 - [x] Title screen / main menu (Play, Level Select, Quit)
 - [x] Level select screen (grid with unlock status, best times, page navigation)
-- [ ] Game over screen with stats (coins, time, deaths)
+- [x] Death stats overlay (deaths, coins, time shown briefly on death)
 - [x] Best time display on HUD (green label below timer)
 - [x] Back to menu (M key during pause)
 
 ### Progression
 - [x] Score persistence across levels (session_coins in GameState, saved on complete)
-- [ ] Unlockable abilities (triple jump, longer dash at certain levels)
-- [ ] Star rating per level (time-based: gold/silver/bronze)
+- [x] Unlockable abilities (triple jump at Lv5, longer dash at Lv10)
+- [x] Star rating per level (gold/silver/bronze, shown on complete + level select)
 
 ### Level Design
 - [x] New layout style: Maze (walled corridors with intersections, 9 styles total)
 - [x] New layout style: Sky Islands (large gaps, small satellite platforms)
-- [ ] Bonus rooms (hidden portal to coin-filled area)
+- [x] Bonus rooms (hidden green portal to off-screen coin area, 30% on medium+)
 - [ ] Moving saw blade patterns (figure-8, circular orbit)
 
 ### Enemies
 - [x] Flying enemy (purple, sine wave patrol, spawns on medium+ difficulty)
 - [x] Shielded enemy (blue, 2 stomps to kill, shield flash on first hit)
-- [ ] Enemy spawner (periodically creates patrol enemies until destroyed)
+- [x] Enemy spawner (pulsing magenta box, spawns patrol enemies, hard+ difficulty)
 
 ---
 
