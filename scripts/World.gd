@@ -46,6 +46,8 @@ var crumble_bodies  : Array[CrumblePlatform] = []
 var ice_platforms   : Array[IcePlatform] = []
 var conveyors       : Array[ConveyorPlatform] = []
 var wind_zones      : Array[WindZone] = []
+var flying_enemies  : Array = []
+var shielded_enemies: Array = []
 var boss_node       : BossEnemy
 
 # -- HUD nodes -----------------------------------------------------------------
@@ -112,6 +114,8 @@ func _load_level(num: int) -> void:
 	var wind_zone_data : Array = level.get("wind_zones", [])
 	var shooter_data : Array = level.get("shooters", [])
 	var boss_data : Array = level.get("boss", [])
+	var flyer_data : Array = level.get("flyers", [])
+	var shielded_data : Array = level.get("shielded", [])
 
 	# Store arrays for _build_world (used once, no need as member vars)
 	level["_crumble"] = crumble_data
@@ -122,6 +126,8 @@ func _load_level(num: int) -> void:
 	level["_wind_zones"] = wind_zone_data
 	level["_shooters"] = shooter_data
 	level["_boss"] = boss_data
+	level["_flyers"] = flyer_data
+	level["_shielded"] = shielded_data
 
 func _build_world() -> void:
 	Builder.make_background(self, level)
@@ -147,6 +153,8 @@ func _build_world() -> void:
 	jumping_enemies = Builder.make_jumpers(self, level["_jumpers"], _on_enemy_hit)
 	shooters = Builder.make_shooters(self, level["_shooters"])
 	wind_zones = Builder.make_wind_zones(self, level["_wind_zones"])
+	flying_enemies = Builder.make_flyers(self, level["_flyers"], _on_enemy_hit)
+	shielded_enemies = Builder.make_shielded(self, level["_shielded"], _on_shielded_hit)
 	if key_data.size() > 0:
 		Builder.make_keys(self, key_data, _on_key_collected)
 	boss_node = Builder.make_boss(self, level["_boss"], _on_boss_hit)
@@ -183,6 +191,19 @@ func _build_world() -> void:
 		key_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.15))
 		hud["hud_layer"].add_child(key_label)
 	keys_collected = 0
+
+	# Best time display
+	if GameState.save.best_times.has(current_level):
+		var best : float = GameState.save.best_times[current_level]
+		var bm := int(best) / 60
+		var bs := int(best) % 60
+		var bms := int(fmod(best, 1.0) * 100)
+		var best_lbl := Label.new()
+		best_lbl.text = "Best  %02d:%02d.%02d" % [bm, bs, bms]
+		best_lbl.position = Vector2(1070, 42)
+		best_lbl.add_theme_font_size_override("font_size", 14)
+		best_lbl.add_theme_color_override("font_color", Color(0.5, 0.7, 0.5, 0.7))
+		hud["hud_layer"].add_child(best_lbl)
 
 	_create_vignette(hud["hud_layer"])
 	_create_dash_lines()
@@ -302,6 +323,7 @@ func _fade_and_reload() -> void:
 
 func _go_next_level() -> void:
 	GameState.complete_level(current_level, elapsed_time)
+	GameState.session_coins += score
 	current_level += 1
 	_switch_level(current_level)
 
@@ -447,6 +469,23 @@ func _on_enemy_hit(body: Node2D, enemy: Area2D) -> void:
 		player_node.velocity.x = knockback_dir * ENEMY_KNOCKBACK_X
 		player_node.velocity.y = ENEMY_KNOCKBACK_Y
 
+func _on_shielded_hit(body: Node2D, enemy: Area2D) -> void:
+	if body != player_node:
+		return
+	if player_node.velocity.y > 0 and player_node.global_position.y < enemy.global_position.y - ENEMY_STOMP_OFFSET:
+		if enemy.take_stomp():
+			_kill_enemy(enemy)
+		player_node.stomp_bounce()
+		Audio.play("stomp", -4.0)
+		_freeze_frame(0.05)
+	else:
+		player_node.take_damage(1)
+		var knockback_dir := signf(player_node.global_position.x - enemy.global_position.x)
+		if knockback_dir == 0:
+			knockback_dir = 1
+		player_node.velocity.x = knockback_dir * ENEMY_KNOCKBACK_X
+		player_node.velocity.y = ENEMY_KNOCKBACK_Y
+
 func _on_bullet_hit(body: Node2D, bullet: Area2D) -> void:
 	if body == player_node:
 		player_node.take_damage(1)
@@ -495,6 +534,16 @@ func _on_player_died() -> void:
 		if is_instance_valid(jumper):
 			jumper.queue_free()
 	jumping_enemies.clear()
+
+	for flyer in flying_enemies:
+		if is_instance_valid(flyer):
+			flyer.queue_free()
+	flying_enemies.clear()
+
+	for se in shielded_enemies:
+		if is_instance_valid(se):
+			se.queue_free()
+	shielded_enemies.clear()
 
 	# Clean up bullets (they are children of self)
 	for child in get_children():
@@ -635,6 +684,10 @@ func _kill_enemy(enemy: Area2D) -> void:
 		patrol_enemies.erase(enemy)
 	elif enemy is JumpingEnemy:
 		jumping_enemies.erase(enemy)
+	elif enemy in flying_enemies:
+		flying_enemies.erase(enemy)
+	elif enemy in shielded_enemies:
+		shielded_enemies.erase(enemy)
 
 func _spawn_enemy_death_particles(pos: Vector2) -> void:
 	_spawn_burst(pos, Colors.ENEMY_CLR, 16, 120.0, 0.5)
@@ -749,6 +802,13 @@ func _toggle_pause_menu() -> void:
 		pause_menu.add_child(key_lbl)
 
 		y_pos += 22
+
+	var menu_lbl := Label.new()
+	menu_lbl.text = "M  Main Menu"
+	menu_lbl.position = Vector2(420, y_pos + 4)
+	menu_lbl.add_theme_font_size_override("font_size", 16)
+	menu_lbl.add_theme_color_override("font_color", Color(0.9, 0.5, 0.5))
+	pause_menu.add_child(menu_lbl)
 
 	var hint := Label.new()
 	hint.text = "Press ESC to resume"

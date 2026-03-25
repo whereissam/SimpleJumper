@@ -10,3 +10,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if world and world.has_method("_toggle_pause_menu"):
 				world._toggle_pause_menu()
 			get_viewport().set_input_as_handled()
+		elif kb.keycode == KEY_M and get_tree().paused:
+			get_tree().paused = false
+			get_tree().change_scene_to_file("res://scenes/TitleScreen.tscn")
+			get_viewport().set_input_as_handled()

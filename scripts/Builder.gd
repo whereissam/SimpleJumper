@@ -507,6 +507,65 @@ static func make_jumpers(w: Node2D, data: Array, on_enemy: Callable) -> Array[Ju
 	return jumpers
 
 # -- Wind Zones ----------------------------------------------------------------
+# -- Flying Enemies ------------------------------------------------------------
+static func make_flyers(w: Node2D, data: Array, on_enemy: Callable) -> Array:
+	var FlyerClass : GDScript = load("res://scripts/entities/FlyingEnemy.gd")
+	var flyers: Array = []
+	for fd in data:
+		var area : Area2D = FlyerClass.new()
+		area.position = Vector2(fd[0], fd[1])
+		area.patrol_center_x = float(fd[0])
+		area.patrol_center_y = float(fd[1])
+		area.patrol_range = float(fd[2])
+		area.patrol_speed = float(fd[3])
+		area.wave_amplitude = float(fd[4])
+		area.wave_speed = float(fd[5])
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(30, 30)
+		cs.shape = rect
+		area.add_child(cs)
+
+		var anim := Sprites.make_enemy_animated()
+		anim.name = "Anim"
+		anim.modulate = Color(0.6, 0.4, 1.0)  # Purple tint for flyers
+		area.add_child(anim)
+
+		area.body_entered.connect(on_enemy.bind(area))
+		w.add_child(area)
+		flyers.append(area)
+	return flyers
+
+# -- Shielded Enemies ----------------------------------------------------------
+static func make_shielded(w: Node2D, data: Array, on_enemy: Callable) -> Array:
+	var ShieldClass : GDScript = load("res://scripts/entities/ShieldedEnemy.gd")
+	var shielded: Array = []
+	for sd in data:
+		var area : Area2D = ShieldClass.new()
+		area.position = Vector2(sd[0], sd[1])
+		area.patrol_center = float(sd[0])
+		area.patrol_range = float(sd[2])
+		area.patrol_speed = float(sd[3])
+		area.shield_hp = int(sd[4])
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(30, 30)
+		cs.shape = rect
+		area.add_child(cs)
+
+		var anim := Sprites.make_enemy_animated()
+		anim.name = "Anim"
+		anim.modulate = Color(0.4, 0.8, 1.0)  # Blue tint for shielded
+		area.add_child(anim)
+
+		area.body_entered.connect(on_enemy.bind(area))
+		w.add_child(area)
+		shielded.append(area)
+	return shielded
+
+# -- Wind Zones ----------------------------------------------------------------
 static func make_wind_zones(w: Node2D, data: Array) -> Array[WindZone]:
 	var zones: Array[WindZone] = []
 	for wd in data:

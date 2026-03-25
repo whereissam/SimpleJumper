@@ -22,9 +22,10 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 	var coins : Array = []
 	var enemies : Array = []
 	var spikes : Array = []
+	var walls : Array = []
 
-	# Pick a random layout style (7 styles total)
-	var style := rng.randi_range(0, 6)
+	# Pick a random layout style (9 styles total)
+	var style := rng.randi_range(0, 8)
 
 	# Ground floor: sometimes full, sometimes with gaps
 	var has_full_ground := rng.randf() > difficulty * 0.5
@@ -171,6 +172,52 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 					go_left = true
 				if y < -400:
 					break
+
+		7:
+			# MAZE -- walled corridors with platforms at corridor intersections
+			var corridor_y : Array[int] = [250, 400, 550]
+			var corridor_x : Array[int] = [200, 500, 800, 1100]
+			# Horizontal corridors (platforms)
+			for cy in corridor_y:
+				for i in range(0, corridor_x.size() - 1):
+					if rng.randf() < 0.7:
+						var cx : int = (corridor_x[i] + corridor_x[i + 1]) / 2
+						var w := rng.randi_range(120, 200) - int(difficulty * 30)
+						platforms.append([cx, cy, maxi(w, 80), 22])
+						coins.append(Vector2(cx, cy - 38))
+			# Vertical walls between corridors
+			for cx in corridor_x:
+				for i in range(0, corridor_y.size() - 1):
+					if rng.randf() < 0.5:
+						var wy : int = (corridor_y[i] + corridor_y[i + 1]) / 2
+						walls.append([cx, wy, 24, rng.randi_range(80, 140)])
+			# Extra platforms at intersections
+			for cx in corridor_x:
+				for cy in corridor_y:
+					if rng.randf() < 0.6:
+						platforms.append([cx, cy, rng.randi_range(60, 100), 22])
+						if rng.randf() < 0.5:
+							coins.append(Vector2(cx, cy - 38))
+
+		8:
+			# FLOATING ISLANDS -- large gaps, requires dash/double jump
+			var num_islands := rng.randi_range(4, 6)
+			for island in num_islands:
+				var ix := 120 + island * (1040 / num_islands) + rng.randi_range(-40, 40)
+				var iy := rng.randi_range(200, 580)
+				# Main island platform
+				var main_w := rng.randi_range(80, 140) - int(difficulty * 20)
+				platforms.append([ix, iy, maxi(main_w, 60), 22])
+				coins.append(Vector2(ix, iy - 38))
+				# Small satellite platforms (1-2)
+				for s in rng.randi_range(1, 2):
+					var sx := ix + rng.randi_range(-120, 120)
+					var sy := iy - rng.randi_range(60, 120)
+					sx = clampi(sx, 80, 1200)
+					sy = clampi(sy, 130, 650)
+					var sw := rng.randi_range(40, 70) - int(difficulty * 10)
+					platforms.append([sx, sy, maxi(sw, 35), 22])
+					coins.append(Vector2(sx, sy - 38))
 
 	# -- Step 1: Remove overlapping platforms --
 	# Two platforms overlap if they're within 30px vertically and horizontally overlapping
@@ -334,7 +381,6 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		portals.append([rng.randi_range(100, 300), 668, hp[0], hp[1] - 30])
 
 	# ── Walls ────────────────────────────────────────────────────────────
-	var walls : Array = []
 	if rng.randf() < 0.6:
 		walls.append([rng.randi_range(30, 60), rng.randi_range(380, 500), 28, rng.randi_range(180, 300)])
 	if rng.randf() < 0.6:
@@ -352,7 +398,7 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 	var bg : Color = bg_styles[rng.randi_range(0, bg_styles.size() - 1)]
 
 	var diff_names : Array = ["Easy", "Medium", "Hard", "Extreme"]
-	var style_names : Array = ["Zigzag", "Spiral", "Towers", "Scattered", "Staircase", "Islands", "Climb"]
+	var style_names : Array = ["Zigzag", "Spiral", "Towers", "Scattered", "Staircase", "Islands", "Climb", "Maze", "Sky Islands"]
 	var diff_idx := mini(int(difficulty * 3.99), 3)
 
 	# ── Jumping enemies [x, y, jump_interval, jump_force, patrol_range, speed] ──
@@ -392,6 +438,26 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		var boss_hp := 3 + int(difficulty * 4)
 		var boss_x := rng.randi_range(400, 900)
 		boss = [boss_x, 650, boss_hp, 40 + int(difficulty * 30), 1.5 - difficulty * 0.5]
+
+	# ── Flying enemies [x, y, patrol_range, speed, wave_amp, wave_speed] ─
+	var flyers : Array = []
+	if difficulty > 0.4:
+		var num_flyers := rng.randi_range(1, 1 + int(difficulty * 2))
+		for i in num_flyers:
+			var fx := rng.randi_range(200, 1080)
+			var fy := rng.randi_range(180, 400)
+			flyers.append([fx, fy, rng.randi_range(60, 150), 30 + int(difficulty * 40), rng.randi_range(30, 60), rng.randf_range(1.5, 3.0)])
+
+	# ── Shielded enemies [x, y, patrol_range, speed, shield_hp] ──────────
+	var shielded : Array = []
+	if difficulty > 0.5:
+		var num_shielded := rng.randi_range(1, 1 + int(difficulty))
+		for i in num_shielded:
+			if platforms.size() > 2:
+				var idx := rng.randi_range(1, platforms.size() - 1)
+				var sp : Array = platforms[idx]
+				if int(sp[2]) > 80:
+					shielded.append([sp[0], sp[1] - 22, rng.randi_range(30, int(sp[2] * 0.4)), 25 + int(difficulty * 35), 2])
 
 	# ── Safe zones: remove hazards near portals and spawn point ──────────
 	var safe_points : Array = [Vector2(640, 630)]  # Player spawn
@@ -452,4 +518,6 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		"keys": keys,
 		"require_keys": require_keys,
 		"boss": boss,
+		"flyers": flyers,
+		"shielded": shielded,
 	}

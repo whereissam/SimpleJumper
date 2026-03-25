@@ -6,6 +6,9 @@ var next_level: int = 1
 var next_seed: int = 0
 var has_pending_transition: bool = false
 
+# -- Session data (reset on return to menu) --
+var session_coins: int = 0
+
 # -- Save data --
 var save: SaveData
 
@@ -27,4 +30,6 @@ func complete_level(level: int, elapsed_time: float) -> void:
 	save.highest_level = maxi(save.highest_level, level + 1)
 	if not save.best_times.has(level) or elapsed_time < save.best_times[level]:
 		save.best_times[level] = elapsed_time
+	save.total_coins += session_coins
+	session_coins = 0
 	SaveData.save_to_disk(save)
