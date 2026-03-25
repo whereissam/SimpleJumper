@@ -2,9 +2,9 @@
 
 A Godot 4 procedurally generated platformer with infinite random levels, multiple hazards, and a full set of movement mechanics.
 
-![Title Screen](game.png)
+![Title Screen](docs/game.png)
 
-https://github.com/user-attachments/assets/game.mp4
+https://github.com/user-attachments/assets/docs/game.mp4
 
 ## Run
 
