@@ -276,14 +276,15 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 			var sp : Array = platforms[idx]
 			spikes.append([sp[0], sp[1] - 12, rng.randi_range(1, 3), 18])
 
-	# ── Saws ─────────────────────────────────────────────────────────────
+	# ── Saws [x, y, radius, pattern, dist, speed] ───────────────────────
 	var saws : Array = []
 	var num_saws := int(difficulty * 5)
+	var patterns := ["x", "y", "circle", "figure8"]
 	for i in num_saws:
 		var sx := rng.randi_range(150, 1130)
 		var sy := rng.randi_range(200, 600)
-		var axis := "x" if rng.randi() % 2 == 0 else "y"
-		saws.append([sx, sy, rng.randi_range(12, 18), axis, rng.randi_range(40, 100), rng.randi_range(35, 75)])
+		var pattern : String = patterns[rng.randi_range(0, patterns.size() - 1)]
+		saws.append([sx, sy, rng.randi_range(12, 18), pattern, rng.randi_range(40, 100), rng.randi_range(35, 75)])
 
 	# ── Shooters ─────────────────────────────────────────────────────────
 	var shooters : Array = []

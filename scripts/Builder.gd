@@ -325,21 +325,31 @@ static func make_saw_blades(w: Node2D, data: Array, on_hazard: Callable) -> void
 		area.body_entered.connect(on_hazard.bind(area))
 		w.add_child(area)
 
-		# Movement
-		var axis     : String = sd[3]
+		# Movement pattern
+		var pattern  : String = sd[3]
 		var dist     : float  = sd[4]
 		var spd      : float  = sd[5]
-		var duration : float  = dist / spd
 
-		var tw := w.create_tween().set_loops()
-		if axis == "x":
-			tw.tween_property(area, "position:x", sd[0] + dist, duration)
-			tw.tween_property(area, "position:x", sd[0] - dist, duration * 2.0)
-			tw.tween_property(area, "position:x", float(sd[0]), duration)
+		if pattern == "circle" or pattern == "figure8":
+			# Store orbit data as metadata for _physics_process
+			area.set_meta("pattern", pattern)
+			area.set_meta("center_x", float(sd[0]))
+			area.set_meta("center_y", float(sd[1]))
+			area.set_meta("orbit_dist", dist)
+			area.set_meta("orbit_speed", spd / dist)  # angular speed
+			area.set_meta("orbit_time", 0.0)
+			area.set_script(load("res://scripts/entities/SawOrbit.gd"))
 		else:
-			tw.tween_property(area, "position:y", sd[1] + dist, duration)
-			tw.tween_property(area, "position:y", sd[1] - dist, duration * 2.0)
-			tw.tween_property(area, "position:y", float(sd[1]), duration)
+			var duration : float = dist / spd
+			var tw := w.create_tween().set_loops()
+			if pattern == "x":
+				tw.tween_property(area, "position:x", sd[0] + dist, duration)
+				tw.tween_property(area, "position:x", sd[0] - dist, duration * 2.0)
+				tw.tween_property(area, "position:x", float(sd[0]), duration)
+			else:
+				tw.tween_property(area, "position:y", sd[1] + dist, duration)
+				tw.tween_property(area, "position:y", sd[1] - dist, duration * 2.0)
+				tw.tween_property(area, "position:y", float(sd[1]), duration)
 
 		# Spin
 		var spin_tw := w.create_tween().set_loops()

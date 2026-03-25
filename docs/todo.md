@@ -145,7 +145,7 @@
 - [x] New layout style: Maze (walled corridors with intersections, 9 styles total)
 - [x] New layout style: Sky Islands (large gaps, small satellite platforms)
 - [x] Bonus rooms (hidden green portal to off-screen coin area, 30% on medium+)
-- [ ] Moving saw blade patterns (figure-8, circular orbit)
+- [x] Moving saw blade patterns (circle + figure-8 orbit via SawOrbit.gd)
 
 ### Enemies
 - [x] Flying enemy (purple, sine wave patrol, spawns on medium+ difficulty)
