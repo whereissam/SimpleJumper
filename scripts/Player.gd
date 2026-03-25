@@ -134,6 +134,7 @@ func _physics_process(delta: float) -> void:
 		dash_timer -= delta
 		velocity.x  = dash_dir * DASH_SPEED
 		velocity.y  = 0.0
+		_spawn_dash_afterimage()
 		if dash_timer <= 0.0:
 			is_dashing = false
 		move_and_slide()
@@ -524,6 +525,23 @@ func _spawn_dash_ghost() -> void:
 	var tw := get_tree().create_tween()
 	tw.tween_interval(0.5)
 	tw.tween_callback(particles.queue_free)
+
+func _spawn_dash_afterimage() -> void:
+	var anim : Node = get_node_or_null("Anim")
+	if not anim or not anim is AnimatedSprite2D:
+		return
+	var asp := anim as AnimatedSprite2D
+	var ghost := Sprite2D.new()
+	ghost.texture = asp.sprite_frames.get_frame_texture(asp.animation, asp.frame)
+	ghost.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	ghost.scale = asp.scale
+	ghost.position = global_position
+	ghost.modulate = Color(0.4, 0.6, 1.0, 0.5)
+	ghost.z_index = -1
+	get_parent().add_child(ghost)
+	var tw := get_tree().create_tween()
+	tw.tween_property(ghost, "modulate:a", 0.0, 0.15)
+	tw.tween_callback(ghost.queue_free)
 
 func _spawn_shield_break() -> void:
 	var particles := GPUParticles2D.new()

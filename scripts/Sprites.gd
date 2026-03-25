@@ -53,6 +53,8 @@ const CRATE           := preload("res://assets/kenney_pixel/Tiles/tile_0048.png"
 const WOOD_PLANK      := preload("res://assets/kenney_pixel/Tiles/tile_0049.png")
 const FLAG_POST       := preload("res://assets/kenney_pixel/Tiles/tile_0131.png")
 const BRICK           := preload("res://assets/kenney_pixel/Tiles/tile_0130.png")
+const SPRING          := preload("res://assets/kenney_pixel/Tiles/tile_0064.png")
+const KEY             := preload("res://assets/kenney_pixel/Tiles/tile_0152.png")
 
 # -- Backgrounds --
 const BG_SKY1         := preload("res://assets/kenney_pixel/Tiles/Backgrounds/tile_0000.png")

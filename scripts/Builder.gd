@@ -209,18 +209,27 @@ static func make_conveyors(w: Node2D, data: Array) -> Array[ConveyorPlatform]:
 
 		Sprites.tile_sprites(sb, float(pd[2]), float(pd[3]), Sprites.GRASS_TOP, Color(1.0, 0.7, 0.3))
 
-		# Direction arrows
+		# Direction arrows (scrolling)
 		var arrow_dir := ">" if pd[4] > 0 else "<"
+		var half_w := float(pd[2]) * 0.5
 		for i in 3:
 			var lbl := Label.new()
 			lbl.text = arrow_dir
 			lbl.add_theme_font_size_override("font_size", 14)
 			lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-			lbl.position = Vector2(
-				-float(pd[2]) * 0.3 + i * float(pd[2]) * 0.3 - 4,
-				-float(pd[3]) * 0.8
-			)
+			var start_x := -half_w * 0.6 + i * half_w * 0.6 - 4
+			lbl.position = Vector2(start_x, -float(pd[3]) * 0.8)
 			sb.add_child(lbl)
+			# Scroll arrow in conveyor direction, loop back
+			var scroll_dist := half_w * 0.4
+			var scroll_dir := float(pd[4])
+			var atw := w.create_tween().set_loops()
+			atw.tween_property(lbl, "position:x", start_x + scroll_dir * scroll_dist, 0.6).set_trans(Tween.TRANS_LINEAR)
+			atw.tween_property(lbl, "modulate:a", 0.0, 0.1)
+			atw.tween_callback(func(): lbl.position.x = start_x - scroll_dir * scroll_dist * 0.3)
+			atw.tween_property(lbl, "modulate:a", 0.6, 0.1)
+			# Stagger start
+			atw.set_speed_scale(0.9 + i * 0.15)
 
 		w.add_child(sb)
 		bodies.append(sb)
@@ -348,25 +357,10 @@ static func make_trampolines(w: Node2D, data: Array, on_tramp: Callable) -> void
 		cs.shape = rect
 		area.add_child(cs)
 
-		var base := ColorRect.new()
-		base.size = Vector2(40, 12)
-		base.position = Vector2(-20, -6)
-		base.color = Colors.TRAMPOLINE_CLR
-		area.add_child(base)
-
-		var pad := ColorRect.new()
-		pad.name = "Pad"
-		pad.size = Vector2(44, 5)
-		pad.position = Vector2(-22, -10)
-		pad.color = Colors.TRAMPOLINE_PAD
-		area.add_child(pad)
-
-		for i in 3:
-			var coil := ColorRect.new()
-			coil.size = Vector2(3, 8)
-			coil.position = Vector2(-12 + i * 10, -4)
-			coil.color = Color(0.8, 0.35, 0.1)
-			area.add_child(coil)
+		var spring := Sprites.make_sprite(Sprites.SPRING, Vector2(2.5, 2.5))
+		spring.modulate = Colors.TRAMPOLINE_CLR
+		spring.position = Vector2(0, -2)
+		area.add_child(spring)
 
 		area.body_entered.connect(on_tramp.bind(area))
 		w.add_child(area)
@@ -418,6 +412,11 @@ static func make_powerups(w: Node2D, data: Array, on_powerup: Callable) -> void:
 		var s := Sprites.make_sprite(Sprites.HEART if is_shield else Sprites.DIAMOND)
 		area.add_child(s)
 
+		# Sparkle trail (cyan for shield, orange for speed)
+		var trail_color := Color(0.3, 0.9, 1.0, 0.7) if is_shield else Color(1.0, 0.55, 0.1, 0.7)
+		var trail := _make_sparkle_particles(trail_color, 3, 0.6)
+		area.add_child(trail)
+
 		var ftw := w.create_tween().set_loops()
 		ftw.tween_property(area, "position:y", pd[1] - 5.0, 0.7).set_trans(Tween.TRANS_SINE)
 		ftw.tween_property(area, "position:y", pd[1] + 5.0, 0.7).set_trans(Tween.TRANS_SINE)
@@ -439,11 +438,17 @@ static func make_coins(w: Node2D, positions: Array, on_coin: Callable) -> void:
 		area.add_child(cs)
 
 		var s := Sprites.make_coin_sprite()
+		s.name = "CoinSprite"
 		area.add_child(s)
 
 		var float_tw := w.create_tween().set_loops()
 		float_tw.tween_property(area, "position:y", pos.y - 6.0, 0.8).set_trans(Tween.TRANS_SINE)
 		float_tw.tween_property(area, "position:y", pos.y + 6.0, 0.8).set_trans(Tween.TRANS_SINE)
+
+		# Coin spin (horizontal scale oscillation)
+		var spin_tw := w.create_tween().set_loops()
+		spin_tw.tween_property(s, "scale:x", -Sprites.SCALE_TILE.x, 0.3).set_trans(Tween.TRANS_SINE)
+		spin_tw.tween_property(s, "scale:x", Sprites.SCALE_TILE.x, 0.3).set_trans(Tween.TRANS_SINE)
 
 		area.body_entered.connect(on_coin.bind(area))
 		w.add_child(area)
@@ -518,24 +523,40 @@ static func make_wind_zones(w: Node2D, data: Array) -> Array[WindZone]:
 		cs.shape = rect
 		area.add_child(cs)
 
-		# Visual: semi-transparent colored zone with arrow indicators
+		# Visual: semi-transparent zone + GPU particle streamlines
 		var fill := ColorRect.new()
 		fill.size = Vector2(wd[2], wd[3])
 		fill.position = Vector2(-float(wd[2]) * 0.5, -float(wd[3]) * 0.5)
 		fill.color = Color(0.4, 0.7, 1.0, 0.08)
 		area.add_child(fill)
 
-		var arrow_char := ">" if wd[4] > 0 else "<"
-		for i in 5:
-			var lbl := Label.new()
-			lbl.text = arrow_char + arrow_char
-			lbl.add_theme_font_size_override("font_size", 18)
-			lbl.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0, 0.2))
-			lbl.position = Vector2(
-				randf_range(-float(wd[2]) * 0.4, float(wd[2]) * 0.3),
-				randf_range(-float(wd[3]) * 0.4, float(wd[3]) * 0.3)
-			)
-			area.add_child(lbl)
+		# Particle streamlines flowing in wind direction
+		var wind_particles := GPUParticles2D.new()
+		wind_particles.amount = 12
+		wind_particles.lifetime = 1.5
+		wind_particles.emitting = true
+		wind_particles.explosiveness = 0.0
+
+		var wmat := ParticleProcessMaterial.new()
+		wmat.direction = Vector3(float(wd[4]), 0, 0)
+		wmat.spread = 10.0
+		wmat.initial_velocity_min = float(wd[5]) * 0.4
+		wmat.initial_velocity_max = float(wd[5]) * 0.8
+		wmat.gravity = Vector3(0, 0, 0)
+		wmat.scale_min = 1.0
+		wmat.scale_max = 2.5
+		wmat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		wmat.emission_box_extents = Vector3(float(wd[2]) * 0.4, float(wd[3]) * 0.4, 0)
+
+		var wgrad := Gradient.new()
+		wgrad.set_color(0, Color(0.5, 0.8, 1.0, 0.3))
+		wgrad.set_color(1, Color(0.5, 0.8, 1.0, 0.0))
+		var wgrad_tex := GradientTexture1D.new()
+		wgrad_tex.gradient = wgrad
+		wmat.color_ramp = wgrad_tex
+
+		wind_particles.process_material = wmat
+		area.add_child(wind_particles)
 
 		w.add_child(area)
 		zones.append(area)
@@ -553,21 +574,13 @@ static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 		cs.shape = circle
 		area.add_child(cs)
 
-		var icon := Polygon2D.new()
-		icon.polygon = PackedVector2Array([
-			Vector2(0, -12), Vector2(10, 0), Vector2(0, 12), Vector2(-10, 0),
-		])
-		icon.color = Color(1.0, 0.85, 0.15)
+		var icon := Sprites.make_sprite(Sprites.KEY, Vector2(2.5, 2.5))
+		icon.modulate = Color(1.0, 0.85, 0.15)
 		area.add_child(icon)
 
-		var dot := Polygon2D.new()
-		var pts := PackedVector2Array()
-		for i in 6:
-			var a := i * TAU / 6.0
-			pts.append(Vector2(cos(a) * 4, sin(a) * 4))
-		dot.polygon = pts
-		dot.color = Color(1.0, 0.95, 0.5)
-		area.add_child(dot)
+		# Gold sparkle trail
+		var trail := _make_sparkle_particles(Color(1.0, 0.85, 0.15, 0.8), 4, 0.8)
+		area.add_child(trail)
 
 		var ftw := w.create_tween().set_loops()
 		ftw.tween_property(area, "position:y", kd[1] - 6.0, 0.6).set_trans(Tween.TRANS_SINE)
@@ -682,12 +695,13 @@ static func make_player(w: Node2D) -> CharacterBody2D:
 	anim.name = "Anim"
 	p.add_child(anim)
 
-	# Shield visual
+	# Shield visual (offset up so it doesn't clip below feet)
 	var shield := Polygon2D.new()
+	shield.position = Vector2(0, -5)
 	var spts := PackedVector2Array()
 	for i in 6:
 		var a := i * TAU / 6.0 - PI * 0.5
-		spts.append(Vector2(cos(a) * 28, sin(a) * 32))
+		spts.append(Vector2(cos(a) * 26, sin(a) * 24))
 	shield.polygon = spts
 	shield.color = Colors.SHIELD_CLR
 	shield.visible = false
@@ -791,3 +805,30 @@ static func make_hud(w: Node2D, total_coins: int, level_data: Dictionary, curren
 		"level_label": level_label,
 		"hud_layer": cl,
 	}
+
+# -- Reusable sparkle particle effect for floating items -----------------------
+static func _make_sparkle_particles(color: Color, amount: int = 4, lifetime: float = 0.8) -> GPUParticles2D:
+	var particles := GPUParticles2D.new()
+	particles.amount = amount
+	particles.lifetime = lifetime
+	particles.emitting = true
+	particles.explosiveness = 0.0
+
+	var mat := ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, -1, 0)
+	mat.spread = 180.0
+	mat.initial_velocity_min = 8.0
+	mat.initial_velocity_max = 20.0
+	mat.gravity = Vector3(0, -10, 0)
+	mat.scale_min = 1.5
+	mat.scale_max = 3.0
+
+	var grad := Gradient.new()
+	grad.set_color(0, color)
+	grad.set_color(1, Color(color.r, color.g, color.b, 0.0))
+	var grad_tex := GradientTexture1D.new()
+	grad_tex.gradient = grad
+	mat.color_ramp = grad_tex
+
+	particles.process_material = mat
+	return particles

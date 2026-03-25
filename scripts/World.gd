@@ -334,6 +334,10 @@ func _on_checkpoint_hit(body: Node2D, checkpoint: Area2D) -> void:
 	var flag : Node = checkpoint.get_node_or_null("Flag")
 	if flag:
 		(flag as Polygon2D).color = Colors.CHECKPOINT_ACT
+		# Flag wave animation (looping gentle oscillation)
+		var wave := create_tween().set_loops()
+		wave.tween_property(flag, "skew", 0.15, 0.5).set_trans(Tween.TRANS_SINE)
+		wave.tween_property(flag, "skew", -0.15, 0.5).set_trans(Tween.TRANS_SINE)
 
 	for i in 6:
 		var spark := ColorRect.new()
@@ -378,6 +382,9 @@ func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 		_freeze_frame(0.08)
 		player_node.camera_shake(6.0, 0.2)
 		if remaining_hp <= 0:
+			_spawn_boss_death_effect(boss.global_position)
+			player_node.camera_shake(8.0, 0.3)
+			_freeze_frame(0.12)
 			_kill_enemy(boss)
 			boss_node = null
 			Audio.play("level_complete", -2.0)
@@ -631,6 +638,24 @@ func _kill_enemy(enemy: Area2D) -> void:
 
 func _spawn_enemy_death_particles(pos: Vector2) -> void:
 	_spawn_burst(pos, Colors.ENEMY_CLR, 16, 120.0, 0.5)
+
+func _spawn_boss_death_effect(pos: Vector2) -> void:
+	# Big red burst
+	_spawn_burst(pos, Colors.ENEMY_CLR, 32, 200.0, 0.7)
+	# White flash burst
+	_spawn_burst(pos, Color(1, 1, 1, 0.9), 16, 150.0, 0.4)
+	# Screen flash
+	var flash := ColorRect.new()
+	flash.color = Color(1, 0.3, 0.2, 0.5)
+	flash.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cl := CanvasLayer.new()
+	cl.layer = 50
+	cl.add_child(flash)
+	add_child(cl)
+	var tw := get_tree().create_tween()
+	tw.tween_property(flash, "color:a", 0.0, 0.3)
+	tw.tween_callback(cl.queue_free)
 
 func _spawn_crumble_particles(pos: Vector2, _w: float) -> void:
 	_spawn_burst(pos, Colors.CRUMBLE_FILL, 10, 60.0, 0.5)

@@ -63,14 +63,38 @@ static func _create_portal(w: Node2D, pos: Vector2, color: Color, glow_color: Co
 	inner.color = Color(1, 1, 1, 0.25)
 	area.add_child(inner)
 
-	# Sparkle particles around portal (decorative dots)
-	for i in 4:
-		var dot := ColorRect.new()
-		dot.size = Vector2(3, 3)
-		var angle := i * TAU / 4.0 + 0.3
-		dot.position = Vector2(cos(angle) * 18 - 1.5, sin(angle) * 30 - 1.5)
-		dot.color = Color(1, 1, 1, 0.4)
-		area.add_child(dot)
+	# GPU particle swirl around portal
+	var swirl := GPUParticles2D.new()
+	swirl.amount = 8
+	swirl.lifetime = 1.2
+	swirl.emitting = true
+	swirl.explosiveness = 0.0
+
+	var smat := ParticleProcessMaterial.new()
+	smat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	smat.emission_ring_radius = 20.0
+	smat.emission_ring_inner_radius = 12.0
+	smat.emission_ring_height = 0.0
+	smat.emission_ring_axis = Vector3(0, 0, 1)
+	smat.direction = Vector3(0, -1, 0)
+	smat.spread = 180.0
+	smat.initial_velocity_min = 5.0
+	smat.initial_velocity_max = 15.0
+	smat.gravity = Vector3(0, -20, 0)
+	smat.scale_min = 1.0
+	smat.scale_max = 2.5
+	smat.angular_velocity_min = 90.0
+	smat.angular_velocity_max = 180.0
+
+	var sgrad := Gradient.new()
+	sgrad.set_color(0, Color(color.r, color.g, color.b, 0.6))
+	sgrad.set_color(1, Color(1, 1, 1, 0.0))
+	var sgrad_tex := GradientTexture1D.new()
+	sgrad_tex.gradient = sgrad
+	smat.color_ramp = sgrad_tex
+
+	swirl.process_material = smat
+	area.add_child(swirl)
 
 	area.monitoring = true
 	area.body_entered.connect(on_body_entered.bind(area))

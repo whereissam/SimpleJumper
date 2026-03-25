@@ -101,16 +101,62 @@
 
 ## Done / Remaining
 
-**DONE:** Sprites, sounds, camera effects, screen effects, parallax, pause menu, crouch, ice, conveyor, 7 map styles, difficulty scaling
+**DONE:** All core features complete -- sprites, sounds, camera effects, screen effects, parallax, pause menu, crouch, ice, conveyor, 7 map styles, difficulty scaling, HUD icons, disappearing platforms, shooter/bullet sprites, GPUParticles2D, background music, wall slide sound, death jingle, jumping/boss enemies, wind zones, collectible keys, GameState autoload, SaveData persistence, self-updating entities.
 
-**REMAINING (nice-to-have):**
-- HUD sprite icons
-- Disappearing platform sprite
-- Shooter/bullet sprites
-- GPUParticles2D
-- Background music
-- Wall slide sound
-- Death jingle
-- Advanced enemies (jumping, flying, boss)
-- Wind zones
-- Collectible keys
+---
+
+## 6. Polish -- Visual & Game Feel
+
+### Sprites
+- [x] Trampoline sprite (Kenney spring tile_0064, orange tinted)
+- [x] Key sprite (Kenney key tile_0152, gold tinted)
+- [x] Wind zone visual (GPUParticles2D streamlines flowing in wind direction)
+
+### Particles & Effects
+- [x] Screen shake on boss death (8px shake, 0.3s)
+- [x] Particle trails on floating keys (gold GPUParticles2D sparkle)
+- [x] Particle trails on floating power-ups (cyan for shield, orange for speed)
+- [x] Dash afterimage (semi-transparent sprite copies trailing behind during dash)
+- [x] Boss death explosion (32-particle red burst + white burst + screen flash)
+- [x] Portal swirl particles (GPUParticles2D ring emission replacing static dots)
+
+### Animation
+- [x] Coin spin animation (horizontal scale oscillation)
+- [x] Checkpoint flag wave (skew oscillation after activation)
+- [x] Conveyor belt arrow scroll (arrows scroll in push direction with fade loop)
+
+---
+
+## 7. Gameplay -- New Features
+
+### Menus & UI
+- [ ] Title screen / main menu (Play, Level Select, Quit)
+- [ ] Level select screen (show highest level, best times from SaveData)
+- [ ] Game over screen with stats (coins, time, deaths)
+- [ ] Best time display on HUD (from SaveData, ghost or label)
+
+### Progression
+- [ ] Score persistence across levels (carry coins to next level)
+- [ ] Unlockable abilities (triple jump, longer dash at certain levels)
+- [ ] Star rating per level (time-based: gold/silver/bronze)
+
+### Level Design
+- [ ] New layout style: Maze (walled corridors with dead ends)
+- [ ] New layout style: Floating Islands (large gaps, requires dash/double jump)
+- [ ] Bonus rooms (hidden portal to coin-filled area)
+- [ ] Moving saw blade patterns (figure-8, circular orbit)
+
+### Enemies
+- [ ] Flying enemy (sine wave patrol, no ground clamping)
+- [ ] Shielded enemy (requires 2 stomps or dash to kill)
+- [ ] Enemy spawner (periodically creates patrol enemies until destroyed)
+
+---
+
+## 8. Architecture -- Code Quality
+
+- [ ] Extract pause menu into standalone PauseMenu.gd script
+- [ ] Convert entities to PackedScenes (.tscn) for editor editing
+- [ ] Ice/conveyor/wind as Area2D with body_entered signals (remove per-frame distance checks)
+- [ ] Object pool for bullets (reuse instead of instantiate/free)
+- [ ] Object pool for particle effects (reuse GPUParticles2D nodes)
