@@ -1,51 +1,54 @@
 # SimpleJumper
 
-A Godot 4 procedurally generated platformer with infinite random levels, multiple hazards, and a full set of movement mechanics.
+A fast, addictive platformer where every level is randomly generated. Wall jump through saw blades, dash past bullet-spraying turrets, and stomp bosses across infinite procedural maps -- all built from scratch in Godot 4 with zero imported assets beyond Kenney sprites.
 
 ![Title Screen](docs/game.png)
 
 <video src="docs/game.mp4" controls width="100%"></video>
 
-## Run
+## Why Play This?
 
-1. Open this folder in Godot 4.6.
-2. Load `project.godot`.
-3. Press `F5` to run.
+- **Every run is different.** 9 layout algorithms (zigzag, spiral, towers, maze, sky islands...) combine with scaling difficulty to keep things fresh.
+- **Tight controls.** Coyote time, jump buffering, wall slides, dashes with afterimages, crouch-drops -- movement feels responsive and snappy.
+- **One-more-level hook.** Star ratings, best times, and ability unlocks (triple jump at Lv5, longer dash at Lv10) give you a reason to push further.
+- **Tons of variety.** Saw blades, crumbling platforms, ice, conveyors, wind zones, portals, shield pickups, speed boosts, 6 enemy types, and boss fights.
+
+## Quick Start
+
+```bash
+# Clone and open in Godot 4.6
+git clone https://github.com/huangbz/SimplePlatformer.git
+cd SimplePlatformer
+# Open project.godot in Godot 4.6, then press F5
+```
+
+Or just download the repo as a ZIP and open `project.godot` in Godot.
 
 ## Controls
 
 | Key | Action |
 |---|---|
-| `Left / Right` | Move |
-| `Space` or `Up` | Jump (double jump, triple jump at Lv5) |
+| Arrow keys / `Left` `Right` | Move |
+| `Space` or `Up` | Jump (double jump in air, triple at Lv5) |
 | `Z` | Dash (longer at Lv10) |
-| `Down` | Crouch / drop through / portal enter |
-| `Down + Space` | Drop-jump through one-way platforms |
-| Hold toward wall | Wall slide / wall jump |
+| `Down` | Crouch / drop through platforms / enter portal |
+| Hold toward wall in air | Wall slide, then jump to wall jump |
 | `Scroll wheel` | Zoom in / out |
-| `Esc` | Pause menu |
-| `M` (paused) | Return to main menu |
+| `Esc` | Pause (shows all controls) |
+| `1-4` | Switch difficulty (Easy / Medium / Hard / Extreme) |
+| `R` | Reroll current map |
+| `N` / `B` | Next / previous level |
 
-### In-Game Shortcuts
+## How It Works
 
-| Key | Action |
-|---|---|
-| `1-4` | Jump to Easy / Medium / Hard / Extreme |
-| `R` | Reroll map |
-| `N / B` | Next / previous level |
+Every level is procedurally generated at runtime:
 
-## Features
+1. **LevelData.gd** picks a random layout style and places platforms, enemies, hazards, coins, and keys based on the current difficulty tier.
+2. **Builder.gd** is a static factory that constructs every game object from code -- no `.tscn` scene files for entities.
+3. **World.gd** orchestrates gameplay: callbacks, level transitions, entity lifecycle.
+4. **Player.gd** handles all movement, combat, and power-up logic with squash & stretch, camera shake, and freeze frames for game feel.
 
-- **9 procedural layout styles** -- Zigzag, Spiral, Towers, Scattered, Staircase, Islands, Climb, Maze, Sky Islands
-- **Difficulty scaling** -- platforms shrink, enemies get faster, more hazards as level increases
-- **Movement** -- double/triple jump, coyote time, jump buffer, wall slide, wall jump, dash with afterimage
-- **Hazards** -- spikes, saw blades (linear, circular, figure-8), bullets, crumbling/disappearing/ice/conveyor platforms
-- **Enemies** -- patrol (red), jumping (yellow), flying (purple), shielded (blue, 2 stomps), boss (scaled, shoots), enemy spawner
-- **Items** -- coins, keys, shield power-up, speed boost, checkpoints, trampolines, portals, bonus rooms
-- **Menus** -- title screen, level select with star ratings and best times, pause menu
-- **Progression** -- SaveData persistence, unlockable abilities, star ratings (gold/silver/bronze)
-- **Effects** -- GPUParticles2D, squash & stretch, camera shake, freeze frames, screen flash, parallax backgrounds
-- **Sound** -- procedural chiptune music, full SFX set, positional audio
+Bullets and particles are object-pooled (`BulletPool.gd`, `ParticlePool.gd`) to avoid allocation spikes. Audio is procedurally generated chiptune.
 
 ## Project Structure
 
@@ -59,39 +62,19 @@ scripts/
   GameState.gd      -- Autoload: level transitions, save data, unlocks
   SaveData.gd       -- Resource-based persistence (best times, stars)
   BulletPool.gd     -- Object pool for bullet reuse
-  TitleScreen.gd    -- Main menu
-  LevelSelect.gd    -- Level select grid
+  ParticlePool.gd   -- Object pool for GPU particle reuse
   AudioManager.gd   -- SFX pool + procedural music
   Portals.gd        -- Portal creation and teleport logic
   Minimap.gd        -- Minimap overlay
   Colors.gd         -- Color constants
   Sprites.gd        -- Kenney sprite textures and helpers
-  PauseHandler.gd   -- ESC/M key handler (always processes)
-  entities/          -- Self-updating entity scripts
-    PatrolEnemy.gd, JumpingEnemy.gd, FlyingEnemy.gd,
-    ShieldedEnemy.gd, BossEnemy.gd, EnemySpawner.gd,
-    Bullet.gd, Shooter.gd, SawOrbit.gd,
-    CrumblePlatform.gd, DisappearPlatform.gd,
-    IcePlatform.gd, ConveyorPlatform.gd, WindZone.gd
-scenes/
-  TitleScreen.tscn   -- Entry scene (main menu)
-  LevelSelect.tscn   -- Level select
-  World.tscn         -- Game scene
-assets/
-  kenney_pixel/      -- Kenney Pixel Platformer sprites
-  audio/             -- Sound effects
+  entities/         -- Self-updating entity scripts (enemies, hazards, platforms)
 ```
-
-## Gameplay
-
-- Every run generates a fresh random map with a unique seed
-- Collect all coins (and keys on medium+) to spawn an exit portal
-- Walk to the exit portal and press Down to advance
-- Falling off costs 1 HP and respawns at last checkpoint
-- Losing all HP resets coins, enemies, and timer
-- Star ratings based on completion time (gold/silver/bronze)
-- Abilities unlock as you progress (triple jump at Lv5, longer dash at Lv10)
 
 ## Requirements
 
-- Godot 4.6 with GL Compatibility renderer
+- Godot 4.6 (GL Compatibility renderer)
+
+## License
+
+Sprites from [Kenney's Pixel Platformer](https://kenney.nl/assets/pixel-platformer). Everything else is original code.

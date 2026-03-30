@@ -6,15 +6,19 @@ const VIEWPORT_WIDTH  := 1280
 const VIEWPORT_HEIGHT := 720
 
 # -- GPU particle burst (reusable) --------------------------------------------
-static func spawn_burst(w: Node2D, pos: Vector2, color: Color, amount: int, speed: float, lifetime: float) -> void:
-	var particles := GPUParticles2D.new()
-	particles.position = pos
-	particles.z_index = 10
-	particles.amount = amount
-	particles.lifetime = lifetime
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-	particles.emitting = true
+static func spawn_burst(w: Node2D, pos: Vector2, color: Color, amount: int, speed: float, lifetime: float, pool: ParticlePool = null) -> void:
+	var particles: GPUParticles2D
+	if pool:
+		particles = pool.acquire(pos, amount, lifetime)
+	else:
+		particles = GPUParticles2D.new()
+		particles.position = pos
+		particles.z_index = 10
+		particles.amount = amount
+		particles.lifetime = lifetime
+		particles.one_shot = true
+		particles.explosiveness = 1.0
+		particles.emitting = true
 
 	var mat := ParticleProcessMaterial.new()
 	mat.direction = Vector3(0, -1, 0)
@@ -34,11 +38,11 @@ static func spawn_burst(w: Node2D, pos: Vector2, color: Color, amount: int, spee
 	mat.color_ramp = grad_tex
 
 	particles.process_material = mat
-	w.add_child(particles)
-
-	var tw := w.get_tree().create_tween()
-	tw.tween_interval(lifetime + 0.1)
-	tw.tween_callback(particles.queue_free)
+	if not pool:
+		w.add_child(particles)
+		var tw := w.get_tree().create_tween()
+		tw.tween_interval(lifetime + 0.1)
+		tw.tween_callback(particles.queue_free)
 
 # -- ColorRect sparkle burst --------------------------------------------------
 static func spawn_sparkle_burst(w: Node2D, pos: Vector2, color: Color, count: int, radius: float) -> void:
@@ -60,22 +64,22 @@ static func spawn_sparkle_burst(w: Node2D, pos: Vector2, color: Color, count: in
 		tw.tween_callback(p.queue_free)
 
 # -- Specific effect shortcuts ------------------------------------------------
-static func spawn_coin_sparkle(w: Node2D, pos: Vector2) -> void:
-	spawn_burst(w, pos, Color(1.0, 0.85, 0.1), 12, 80.0, 0.4)
+static func spawn_coin_sparkle(w: Node2D, pos: Vector2, pool: ParticlePool = null) -> void:
+	spawn_burst(w, pos, Color(1.0, 0.85, 0.1), 12, 80.0, 0.4, pool)
 
-static func spawn_enemy_death(w: Node2D, pos: Vector2) -> void:
-	spawn_burst(w, pos, Colors.ENEMY_CLR, 16, 120.0, 0.5)
+static func spawn_enemy_death(w: Node2D, pos: Vector2, pool: ParticlePool = null) -> void:
+	spawn_burst(w, pos, Colors.ENEMY_CLR, 16, 120.0, 0.5, pool)
 
-static func spawn_crumble(w: Node2D, pos: Vector2) -> void:
-	spawn_burst(w, pos, Colors.CRUMBLE_FILL, 10, 60.0, 0.5)
+static func spawn_crumble(w: Node2D, pos: Vector2, pool: ParticlePool = null) -> void:
+	spawn_burst(w, pos, Colors.CRUMBLE_FILL, 10, 60.0, 0.5, pool)
 
 static func spawn_powerup_effect(w: Node2D, pos: Vector2, ptype: String) -> void:
 	var color := Colors.SHIELD_CLR if ptype == "shield" else Colors.SPEED_CLR
 	spawn_sparkle_burst(w, pos, color, 12, 35.0)
 
-static func spawn_boss_death(w: Node2D, pos: Vector2) -> void:
-	spawn_burst(w, pos, Colors.ENEMY_CLR, 32, 200.0, 0.7)
-	spawn_burst(w, pos, Color(1, 1, 1, 0.9), 16, 150.0, 0.4)
+static func spawn_boss_death(w: Node2D, pos: Vector2, pool: ParticlePool = null) -> void:
+	spawn_burst(w, pos, Colors.ENEMY_CLR, 32, 200.0, 0.7, pool)
+	spawn_burst(w, pos, Color(1, 1, 1, 0.9), 16, 150.0, 0.4, pool)
 	# Screen flash
 	var flash := ColorRect.new()
 	flash.color = Color(1, 0.3, 0.2, 0.5)

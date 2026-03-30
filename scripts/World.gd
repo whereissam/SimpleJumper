@@ -50,6 +50,7 @@ var shielded_enemies: Array = []
 var spawners        : Array = []
 var boss_node       : BossEnemy
 var bullet_pool     : BulletPool
+var particle_pool   : ParticlePool
 
 # -- HUD nodes -----------------------------------------------------------------
 var score          := 0
@@ -152,6 +153,11 @@ func _build_world() -> void:
 	total_coins = coin_positions.size()
 	Bld.make_coins(self, coin_positions, _on_coin_entered)
 
+	# Particle pool (reuses GPUParticles2D nodes)
+	particle_pool = ParticlePool.new()
+	particle_pool.setup()
+	add_child(particle_pool)
+
 	# Bullet pool (must exist before shooters/boss)
 	bullet_pool = BulletPool.new()
 	bullet_pool.setup(_on_bullet_hit)
@@ -174,6 +180,7 @@ func _build_world() -> void:
 		_build_bonus_room(bonus_data)
 
 	player_node = Bld.make_player(self)
+	player_node.particle_pool = particle_pool
 	player_node.apply_unlocks(GameState.save.highest_level)
 
 	# Connect entity signals
@@ -414,7 +421,7 @@ func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 		_freeze_frame(0.08)
 		player_node.camera_shake(6.0, 0.2)
 		if remaining_hp <= 0:
-			Effects.spawn_boss_death(self, boss.global_position)
+			Effects.spawn_boss_death(self, boss.global_position, particle_pool)
 			player_node.camera_shake(8.0, 0.3)
 			_freeze_frame(0.12)
 			_kill_enemy(boss)
@@ -444,7 +451,7 @@ func _on_powerup_hit(body: Node2D, powerup: Area2D) -> void:
 func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 	if body != player_node:
 		return
-	Effects.spawn_coin_sparkle(self, coin.global_position)
+	Effects.spawn_coin_sparkle(self, coin.global_position, particle_pool)
 	coin.queue_free()
 	score += 1
 	Audio.play("coin", -6.0, randf_range(0.9, 1.1))
@@ -561,7 +568,9 @@ func _on_player_died() -> void:
 			sp.queue_free()
 	spawners.clear()
 
-	# Return all bullets to pool
+	# Return all pooled objects
+	if particle_pool:
+		particle_pool.release_all()
 	if bullet_pool:
 		bullet_pool.release_all()
 
@@ -627,7 +636,7 @@ func _on_spawner_spawn(spawner: Area2D, pos: Vector2) -> void:
 	patrol_enemies.append_array(new_enemies)
 
 func _on_crumble_collapsed(platform: CrumblePlatform) -> void:
-	Effects.spawn_crumble(self, Vector2(platform.origin_x, platform.origin_y))
+	Effects.spawn_crumble(self, Vector2(platform.origin_x, platform.origin_y), particle_pool)
 	Audio.play("crumble", -6.0)
 
 # -- Teleportation -------------------------------------------------------------
@@ -671,7 +680,7 @@ func _kill_enemy(enemy: Area2D) -> void:
 		shielded_enemies.erase(enemy)
 
 func _on_enemy_death_fx(pos: Vector2) -> void:
-	Effects.spawn_enemy_death(self, pos)
+	Effects.spawn_enemy_death(self, pos, particle_pool)
 
 func _build_bonus_room(data: Dictionary) -> void:
 	var entrance_pos := Vector2(data["entrance_x"], data["entrance_y"])

@@ -160,4 +160,4 @@
 - [ ] Convert entities to PackedScenes (.tscn) for editor editing
 - [x] Ice/conveyor/wind as Area2D with body_entered signals (self-managing, no World loops)
 - [x] Object pool for bullets (BulletPool.gd, 20 pre-allocated, reuse instead of instantiate/free)
-- [ ] Object pool for particle effects (reuse GPUParticles2D nodes)
+- [x] Object pool for particle effects (ParticlePool.gd, 24 pre-allocated, reuse instead of instantiate/free)

@@ -62,6 +62,7 @@ var respawn_pos    := Vector2(640, 630)
 # Visual nodes (set by Builder)
 var shield_vis : Polygon2D   # Shield visual indicator
 var cam_zoom   := 1.0        # Camera zoom level
+var particle_pool : ParticlePool  # Shared particle pool (set by World)
 
 # Squash & stretch
 var was_on_floor   := true
@@ -486,14 +487,19 @@ func _update_look_ahead(delta: float) -> void:
 
 # ── Particle effects ────────────────────────────────────────────────────────
 func _spawn_jump_dust() -> void:
-	var particles := GPUParticles2D.new()
-	particles.emitting = true
-	particles.one_shot = true
-	particles.amount = 8
-	particles.lifetime = 0.4
-	particles.explosiveness = 0.9
-	particles.z_index = -1
-	particles.position = global_position + Vector2(0, 20)
+	var pos := global_position + Vector2(0, 20)
+	var particles: GPUParticles2D
+	if particle_pool:
+		particles = particle_pool.acquire(pos, 8, 0.4, 0.9, -1)
+	else:
+		particles = GPUParticles2D.new()
+		particles.emitting = true
+		particles.one_shot = true
+		particles.amount = 8
+		particles.lifetime = 0.4
+		particles.explosiveness = 0.9
+		particles.z_index = -1
+		particles.position = pos
 
 	var mat := ParticleProcessMaterial.new()
 	mat.direction = Vector3(0, -1, 0)
@@ -512,20 +518,25 @@ func _spawn_jump_dust() -> void:
 	mat.color_ramp = color_ramp
 	particles.process_material = mat
 
-	get_parent().add_child(particles)
-	var tw := get_tree().create_tween()
-	tw.tween_interval(0.5)
-	tw.tween_callback(particles.queue_free)
+	if not particle_pool:
+		get_parent().add_child(particles)
+		var tw := get_tree().create_tween()
+		tw.tween_interval(0.5)
+		tw.tween_callback(particles.queue_free)
 
 func _spawn_dash_ghost() -> void:
-	var particles := GPUParticles2D.new()
-	particles.emitting = true
-	particles.one_shot = true
-	particles.amount = 12
-	particles.lifetime = 0.35
-	particles.explosiveness = 0.8
-	particles.z_index = -1
-	particles.position = global_position
+	var particles: GPUParticles2D
+	if particle_pool:
+		particles = particle_pool.acquire(global_position, 12, 0.35, 0.8, -1)
+	else:
+		particles = GPUParticles2D.new()
+		particles.emitting = true
+		particles.one_shot = true
+		particles.amount = 12
+		particles.lifetime = 0.35
+		particles.explosiveness = 0.8
+		particles.z_index = -1
+		particles.position = global_position
 
 	var mat := ParticleProcessMaterial.new()
 	mat.direction = Vector3(-facing, 0, 0)
@@ -543,10 +554,11 @@ func _spawn_dash_ghost() -> void:
 	mat.color_ramp = color_ramp
 	particles.process_material = mat
 
-	get_parent().add_child(particles)
-	var tw := get_tree().create_tween()
-	tw.tween_interval(0.5)
-	tw.tween_callback(particles.queue_free)
+	if not particle_pool:
+		get_parent().add_child(particles)
+		var tw := get_tree().create_tween()
+		tw.tween_interval(0.5)
+		tw.tween_callback(particles.queue_free)
 
 func _spawn_dash_afterimage() -> void:
 	var anim : Node = get_node_or_null("Anim")
@@ -566,14 +578,18 @@ func _spawn_dash_afterimage() -> void:
 	tw.tween_callback(ghost.queue_free)
 
 func _spawn_shield_break() -> void:
-	var particles := GPUParticles2D.new()
-	particles.emitting = true
-	particles.one_shot = true
-	particles.amount = 16
-	particles.lifetime = 0.5
-	particles.explosiveness = 1.0
-	particles.z_index = 5
-	particles.position = global_position
+	var particles: GPUParticles2D
+	if particle_pool:
+		particles = particle_pool.acquire(global_position, 16, 0.5, 1.0, 5)
+	else:
+		particles = GPUParticles2D.new()
+		particles.emitting = true
+		particles.one_shot = true
+		particles.amount = 16
+		particles.lifetime = 0.5
+		particles.explosiveness = 1.0
+		particles.z_index = 5
+		particles.position = global_position
 
 	var mat := ParticleProcessMaterial.new()
 	mat.direction = Vector3(0, 0, 0)
@@ -591,10 +607,11 @@ func _spawn_shield_break() -> void:
 	mat.color_ramp = color_ramp
 	particles.process_material = mat
 
-	get_parent().add_child(particles)
-	var tw := get_tree().create_tween()
-	tw.tween_interval(0.6)
-	tw.tween_callback(particles.queue_free)
+	if not particle_pool:
+		get_parent().add_child(particles)
+		var tw := get_tree().create_tween()
+		tw.tween_interval(0.6)
+		tw.tween_callback(particles.queue_free)
 
 func _spawn_landing_ring() -> void:
 	# Expanding ring effect at player feet
