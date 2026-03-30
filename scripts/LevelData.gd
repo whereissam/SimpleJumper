@@ -299,10 +299,11 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 
 	# ── Moving platforms ─────────────────────────────────────────────────
 	var moving : Array = []
+	var move_axes := ["x", "y", "circle"]
 	for i in rng.randi_range(1, 2 + int(difficulty * 2)):
 		var mx := rng.randi_range(150, 1100)
 		var my := rng.randi_range(200, 580)
-		var axis := "x" if rng.randi() % 2 == 0 else "y"
+		var axis : String = move_axes[rng.randi_range(0, move_axes.size() - 1)]
 		var dist := rng.randi_range(60, 160)
 		var spd := rng.randi_range(35, 55 + int(difficulty * 30))
 		moving.append([mx, my, rng.randi_range(70, 130), 18, axis, dist, spd])
@@ -433,12 +434,42 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 				var kp : Array = platforms[idx]
 				keys.append([kp[0] + rng.randi_range(-30, 30), kp[1] - 35])
 
+	# ── Destructible blocks [x, y, width, height] ──────────────────────
+	var destructibles : Array = []
+	if difficulty > 0.2:
+		for i in rng.randi_range(1, 2 + int(difficulty * 2)):
+			if platforms.size() > 3:
+				var idx := rng.randi_range(1, platforms.size() - 1)
+				var dp : Array = platforms[idx]
+				# Place block near a platform, slightly offset
+				var bx := dp[0] + rng.randi_range(-50, 50)
+				var by := dp[1] - rng.randi_range(30, 60)
+				destructibles.append([bx, by, rng.randi_range(30, 50), rng.randi_range(30, 50)])
+
+	# ── Gravity flip zones [x, y, width, height] ────────────────────────
+	var gravity_zones : Array = []
+	if difficulty > 0.45:
+		for i in rng.randi_range(1, 1 + int(difficulty)):
+			var gx := rng.randi_range(200, 1080)
+			var gy := rng.randi_range(200, 500)
+			gravity_zones.append([gx, gy, rng.randi_range(100, 200), rng.randi_range(100, 200)])
+
+	# ── Water zones [x, y, width, height] ────────────────────────────────
+	var water_zones : Array = []
+	if difficulty > 0.35 and rng.randf() < 0.4:
+		var wx := rng.randi_range(200, 900)
+		var wy := rng.randi_range(400, 620)
+		water_zones.append([wx, wy, rng.randi_range(200, 400), rng.randi_range(100, 200)])
+
 	# ── Boss (on hard+ difficulty, replaces some enemies) ────────────────
-	var boss : Array = []  # [x, y, hp, speed, fire_interval]
+	# [x, y, hp, speed, fire_interval, variant]
+	# variant: 0=normal, 1=charger (fast dash), 2=jumper (leaps at player)
+	var boss : Array = []
 	if difficulty > 0.6:
 		var boss_hp := 3 + int(difficulty * 4)
 		var boss_x := rng.randi_range(400, 900)
-		boss = [boss_x, 650, boss_hp, 40 + int(difficulty * 30), 1.5 - difficulty * 0.5]
+		var variant := rng.randi_range(0, 2)
+		boss = [boss_x, 650, boss_hp, 40 + int(difficulty * 30), 1.5 - difficulty * 0.5, variant]
 
 	# ── Flying enemies [x, y, patrol_range, speed, wave_amp, wave_speed] ─
 	var flyers : Array = []
@@ -532,6 +563,9 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 		"flyers": flyers,
 		"shielded": shielded,
 		"spawners": spawners,
+		"destructibles": destructibles,
+		"gravity_zones": gravity_zones,
+		"water_zones": water_zones,
 		"bonus_room": _generate_bonus_room(rng, difficulty, platforms),
 	}
 

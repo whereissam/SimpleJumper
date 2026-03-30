@@ -56,6 +56,11 @@ var has_shield     := false
 var speed_boost    := 0.0     # Remaining boost time
 const BOOST_MULT  := 1.6
 
+# Combo system
+var combo_count    := 0
+var combo_timer    := 0.0
+const COMBO_WINDOW := 2.0     # Seconds to chain next action before combo resets
+
 # Checkpoint
 var respawn_pos    := Vector2(640, 630)
 
@@ -85,6 +90,7 @@ const CROUCH_SPEED_MULT := 0.4
 signal hp_changed(new_hp: int)
 signal player_died
 signal shield_changed(has: bool)
+signal combo_changed(count: int, multiplier: float)
 
 func apply_unlocks(highest_level: int) -> void:
 	if highest_level >= TRIPLE_JUMP_LEVEL:
@@ -111,6 +117,13 @@ func _apply_zoom() -> void:
 		cam.zoom = Vector2(cam_zoom, cam_zoom)
 
 func _physics_process(delta: float) -> void:
+	# ── Combo timer ───────────────────────────────────────────────────────
+	if combo_count > 0:
+		combo_timer -= delta
+		if combo_timer <= 0.0:
+			combo_count = 0
+			combo_changed.emit(0, 1.0)
+
 	# ── Power-up timers ───────────────────────────────────────────────────
 	if speed_boost > 0.0:
 		speed_boost -= delta
@@ -130,7 +143,8 @@ func _physics_process(delta: float) -> void:
 	elif modulate.a != 1.0:
 		modulate.a = 1.0
 
-	var current_speed := SPEED * (BOOST_MULT if speed_boost > 0.0 else 1.0)
+	var skin_speed : float = get_meta("skin_speed_mult") if has_meta("skin_speed_mult") else 1.0
+	var current_speed := SPEED * skin_speed * (BOOST_MULT if speed_boost > 0.0 else 1.0)
 
 	# ── Dash logic ────────────────────────────────────────────────────────
 	dash_cooldown = maxf(dash_cooldown - delta, 0.0)
@@ -195,24 +209,25 @@ func _physics_process(delta: float) -> void:
 
 	# ── Execute jump ──────────────────────────────────────────────────────
 	elif jump_buffer > 0.0:
+		var skin_jump : float = get_meta("skin_jump_mult") if has_meta("skin_jump_mult") else 1.0
 		if is_wall_sliding:
 			var wall_dir := -1 if _wall_on_right() else 1
 			velocity.x   = WALL_JUMP_VEL.x * wall_dir
-			velocity.y   = WALL_JUMP_VEL.y
+			velocity.y   = WALL_JUMP_VEL.y * skin_jump
 			jumps_left   = 0
 			jump_buffer  = 0.0
 			is_wall_sliding = false
 			_spawn_jump_dust()
 			Audio.play("jump", -4.0)
 		elif coyote_timer > 0.0:
-			velocity.y   = JUMP_VEL
+			velocity.y   = JUMP_VEL * skin_jump
 			jumps_left   = max_jumps - 1
 			coyote_timer = 0.0
 			jump_buffer  = 0.0
 			_spawn_jump_dust()
 			Audio.play("jump", -4.0)
 		elif jumps_left > 0:
-			velocity.y  = AIR_JUMP
+			velocity.y  = AIR_JUMP * skin_jump
 			jumps_left -= 1
 			jump_buffer = 0.0
 			_spawn_jump_dust()
@@ -361,6 +376,24 @@ func grant_shield() -> void:
 
 func grant_speed_boost(duration: float) -> void:
 	speed_boost = duration
+
+func add_combo() -> float:
+	## Increments combo, resets timer, returns current multiplier.
+	combo_count += 1
+	combo_timer = COMBO_WINDOW
+	var mult := get_combo_multiplier()
+	combo_changed.emit(combo_count, mult)
+	return mult
+
+func get_combo_multiplier() -> float:
+	## 1x at 0 combo, 1.5x at 2, 2x at 4, capped at 3x.
+	return minf(1.0 + combo_count * 0.25, 3.0)
+
+func reset_combo() -> void:
+	if combo_count > 0:
+		combo_count = 0
+		combo_timer = 0.0
+		combo_changed.emit(0, 1.0)
 
 func camera_shake(intensity: float = 4.0, duration: float = 0.2) -> void:
 	var cam := get_node_or_null("Camera2D") as Camera2D

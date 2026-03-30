@@ -128,15 +128,27 @@ static func make_moving_platforms(w: Node2D, data: Array) -> void:
 		var spd      : float  = mp[6]
 		var duration : float  = dist / spd
 
-		var tw := w.create_tween().set_loops()
-		if axis == "x":
-			tw.tween_property(ab, "position:x", mp[0] + dist, duration)
-			tw.tween_property(ab, "position:x", mp[0] - dist, duration * 2.0)
-			tw.tween_property(ab, "position:x", float(mp[0]), duration)
+		if axis == "circle":
+			# Circular path using a helper node
+			var origin := Vector2(mp[0], mp[1])
+			var orbit_node := Node2D.new()
+			orbit_node.set_meta("orbit_target", ab)
+			orbit_node.set_meta("orbit_origin", origin)
+			orbit_node.set_meta("orbit_radius", dist)
+			orbit_node.set_meta("orbit_speed", spd / dist)
+			orbit_node.set_meta("orbit_angle", 0.0)
+			orbit_node.set_script(load("res://scripts/entities/CirclePlatform.gd"))
+			w.add_child(orbit_node)
 		else:
-			tw.tween_property(ab, "position:y", mp[1] + dist, duration)
-			tw.tween_property(ab, "position:y", mp[1] - dist, duration * 2.0)
-			tw.tween_property(ab, "position:y", float(mp[1]), duration)
+			var tw := w.create_tween().set_loops()
+			if axis == "x":
+				tw.tween_property(ab, "position:x", mp[0] + dist, duration)
+				tw.tween_property(ab, "position:x", mp[0] - dist, duration * 2.0)
+				tw.tween_property(ab, "position:x", float(mp[0]), duration)
+			else:
+				tw.tween_property(ab, "position:y", mp[1] + dist, duration)
+				tw.tween_property(ab, "position:y", mp[1] - dist, duration * 2.0)
+				tw.tween_property(ab, "position:y", float(mp[1]), duration)
 
 # -- Crumbling Platforms -------------------------------------------------------
 static func make_crumble_platforms(w: Node2D, data: Array) -> Array[CrumblePlatform]:
@@ -669,6 +681,110 @@ static func make_wind_zones(w: Node2D, data: Array) -> Array[WindZone]:
 		zones.append(area)
 	return zones
 
+# -- Destructible Blocks -------------------------------------------------------
+static func make_destructibles(w: Node2D, data: Array, on_destroyed: Callable) -> Array[DestructibleBlock]:
+	var blocks: Array[DestructibleBlock] = []
+	for dd in data:
+		var block := DestructibleBlock.new()
+		block.position = Vector2(dd[0], dd[1])
+		block.block_width = float(dd[2])
+		block.block_height = float(dd[3])
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(dd[2], dd[3])
+		cs.shape = rect
+		block.add_child(cs)
+
+		# Cracked block visual
+		var vis := ColorRect.new()
+		vis.size = Vector2(dd[2], dd[3])
+		vis.position = Vector2(-float(dd[2]) * 0.5, -float(dd[3]) * 0.5)
+		vis.color = Color(0.6, 0.45, 0.3, 0.9)
+		block.add_child(vis)
+
+		# Crack lines
+		var crack := ColorRect.new()
+		crack.size = Vector2(2, dd[3] * 0.6)
+		crack.position = Vector2(-1, -float(dd[3]) * 0.3)
+		crack.color = Color(0.3, 0.2, 0.15)
+		block.add_child(crack)
+
+		block.destroyed.connect(on_destroyed.bind(block))
+		w.add_child(block)
+		blocks.append(block)
+	return blocks
+
+# -- Gravity Zones -------------------------------------------------------------
+static func make_gravity_zones(w: Node2D, data: Array) -> Array[GravityZone]:
+	var zones: Array[GravityZone] = []
+	for gd in data:
+		var area := GravityZone.new()
+		area.position = Vector2(gd[0], gd[1])
+		area.zone_width = float(gd[2])
+		area.zone_height = float(gd[3])
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(gd[2], gd[3])
+		cs.shape = rect
+		area.add_child(cs)
+
+		# Purple-tinted zone visual
+		var fill := ColorRect.new()
+		fill.size = Vector2(gd[2], gd[3])
+		fill.position = Vector2(-float(gd[2]) * 0.5, -float(gd[3]) * 0.5)
+		fill.color = Color(0.6, 0.2, 0.8, 0.12)
+		area.add_child(fill)
+
+		# Arrow indicators (upward)
+		for i in 3:
+			var arrow := Label.new()
+			arrow.text = "^"
+			arrow.position = Vector2(-float(gd[2]) * 0.3 + i * float(gd[2]) * 0.3, -10)
+			arrow.add_theme_font_size_override("font_size", 18)
+			arrow.add_theme_color_override("font_color", Color(0.7, 0.3, 1.0, 0.5))
+			area.add_child(arrow)
+
+		area.monitoring = true
+		w.add_child(area)
+		zones.append(area)
+	return zones
+
+# -- Water Zones ---------------------------------------------------------------
+static func make_water_zones(w: Node2D, data: Array) -> Array[WaterZone]:
+	var zones: Array[WaterZone] = []
+	for wd in data:
+		var area := WaterZone.new()
+		area.position = Vector2(wd[0], wd[1])
+		area.zone_width = float(wd[2])
+		area.zone_height = float(wd[3])
+
+		var cs := CollisionShape2D.new()
+		var rect := RectangleShape2D.new()
+		rect.size = Vector2(wd[2], wd[3])
+		cs.shape = rect
+		area.add_child(cs)
+
+		# Blue water visual
+		var fill := ColorRect.new()
+		fill.size = Vector2(wd[2], wd[3])
+		fill.position = Vector2(-float(wd[2]) * 0.5, -float(wd[3]) * 0.5)
+		fill.color = Color(0.1, 0.3, 0.8, 0.25)
+		area.add_child(fill)
+
+		# Water surface line
+		var surface := ColorRect.new()
+		surface.size = Vector2(wd[2], 3)
+		surface.position = Vector2(-float(wd[2]) * 0.5, -float(wd[3]) * 0.5)
+		surface.color = Color(0.3, 0.6, 1.0, 0.6)
+		area.add_child(surface)
+
+		area.monitoring = true
+		w.add_child(area)
+		zones.append(area)
+	return zones
+
 # -- Keys (collectible) -------------------------------------------------------
 static func make_keys(w: Node2D, data: Array, on_key: Callable) -> void:
 	for kd in data:
@@ -710,6 +826,7 @@ static func make_boss(w: Node2D, data: Array, on_enemy: Callable) -> BossEnemy:
 	area.boss_speed = float(data[3])
 	area.boss_fire_interval = float(data[4])
 	area.boss_fire_timer = float(data[4])
+	area.boss_variant = int(data[5]) if data.size() > 5 else 0
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()

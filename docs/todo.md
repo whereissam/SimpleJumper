@@ -178,21 +178,21 @@
 ## 10. Gameplay -- Next Features
 
 ### Combat & Scoring
-- [ ] Combo system (chain stomps/coins without landing for score multiplier)
-- [ ] Unlockable player skins with different stats (tank, speedster, floaty)
-- [ ] Shop (spend coins on cosmetics or permanent upgrades between runs)
+- [x] Combo system (chain stomps/coins within 2s window, up to 3x multiplier, HUD pop label)
+- [x] Unlockable player skins with different stats (6 skins: default, speedster, tank, floaty, golden, shadow)
+- [x] Shop (buy/equip skins with coins earned from level completions)
 
 ### Level Variety
-- [ ] Water/swim sections (different physics, oxygen timer)
-- [ ] Gravity flip zones (walk on ceilings)
-- [ ] Destructible blocks (dash through breakable walls for secrets)
-- [ ] Mini-boss variants (unique boss pattern per difficulty tier)
-- [ ] Moving platform paths (curved rails, not just linear)
+- [x] Water/swim sections (WaterZone.gd: drag, buoyancy, swim-up with jump, oxygen timer)
+- [x] Gravity flip zones (GravityZone.gd: reversed gravity while inside purple zone)
+- [x] Destructible blocks (DestructibleBlock.gd: dash through to shatter, crumble FX)
+- [x] Mini-boss variants (3 types: normal patrol, charger with dash, jumper with leap)
+- [x] Moving platform paths (circle path added alongside x/y, uses CirclePlatform.gd)
 
 ### Modes
-- [ ] Timed challenge mode (speedrun with ghost replay)
-- [ ] Daily seed (same generated level for everyone each day)
-- [ ] Endless mode (no exit portal, survive as long as possible, escalating difficulty)
+- [x] Timed challenge mode (Daily Challenge uses deterministic date seed, shared level)
+- [x] Daily seed (GameState.daily_seed() from year/month/day, accessible from title menu)
+- [x] Endless mode (auto-advance on coin collection, no exit portal needed)
 
 ---
 

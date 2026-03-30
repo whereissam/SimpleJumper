@@ -45,6 +45,9 @@ var crumble_bodies  : Array[CrumblePlatform] = []
 var ice_platforms   : Array[IcePlatform] = []
 var conveyors       : Array[ConveyorPlatform] = []
 var wind_zones      : Array[WindZone] = []
+var gravity_zones   : Array[GravityZone] = []
+var water_zones     : Array[WaterZone] = []
+var destructibles   : Array[DestructibleBlock] = []
 var flying_enemies  : Array = []
 var shielded_enemies: Array = []
 var spawners        : Array = []
@@ -82,6 +85,8 @@ var pause_menu       : CanvasLayer
 var vignette_rect    : ColorRect
 var dash_lines_layer : CanvasLayer
 var camera_fx        : CameraFX
+var combo_label      : Label
+var game_mode        : String = ""  # "", "endless", "daily"
 
 
 # ==============================================================================
@@ -90,6 +95,7 @@ func _ready() -> void:
 	if not transition.is_empty():
 		world_seed = transition["seed"]
 		current_level = transition["level"]
+		game_mode = transition.get("mode", "")
 	else:
 		world_seed = randi() % 999999
 	_load_level(current_level)
@@ -133,6 +139,9 @@ func _load_level(num: int) -> void:
 	level["_flyers"] = flyer_data
 	level["_shielded"] = shielded_data
 	level["_spawners"] = level.get("spawners", [])
+	level["_destructibles"] = level.get("destructibles", [])
+	level["_gravity_zones"] = level.get("gravity_zones", [])
+	level["_water_zones"] = level.get("water_zones", [])
 
 func _build_world() -> void:
 	Bld.make_background(self, level)
@@ -168,6 +177,9 @@ func _build_world() -> void:
 	jumping_enemies = Bld.make_jumpers(self, level["_jumpers"], _on_enemy_hit)
 	shooters = Bld.make_shooters(self, level["_shooters"])
 	wind_zones = Bld.make_wind_zones(self, level["_wind_zones"])
+	gravity_zones = Bld.make_gravity_zones(self, level["_gravity_zones"])
+	water_zones = Bld.make_water_zones(self, level["_water_zones"])
+	destructibles = Bld.make_destructibles(self, level["_destructibles"], _on_block_destroyed)
 	flying_enemies = Bld.make_flyers(self, level["_flyers"], _on_enemy_hit)
 	shielded_enemies = Bld.make_shielded(self, level["_shielded"], _on_shielded_hit)
 	spawners = Bld.make_spawners(self, level["_spawners"], _on_spawner_hit)
@@ -183,6 +195,7 @@ func _build_world() -> void:
 	player_node = Bld.make_player(self)
 	player_node.particle_pool = particle_pool
 	player_node.apply_unlocks(GameState.save.highest_level)
+	Skins.apply_skin(player_node, GameState.save.active_skin)
 
 	# Connect entity signals
 	for shooter in shooters:
@@ -202,9 +215,15 @@ func _build_world() -> void:
 		conv.setup_detection(player_node)
 	for zone in wind_zones:
 		zone.setup_detection(player_node)
+	for gz in gravity_zones:
+		gz.setup_detection(player_node)
+	for wz in water_zones:
+		wz.setup_detection(player_node)
+		wz.oxygen_depleted.connect(_on_water_oxygen_depleted)
 	player_node.hp_changed.connect(_on_hp_changed)
 	player_node.player_died.connect(_on_player_died)
 	player_node.shield_changed.connect(_on_shield_changed)
+	player_node.combo_changed.connect(_on_combo_changed)
 
 	var hud := Bld.make_hud(self, total_coins, level, current_level)
 	score_label  = hud["score_label"]
@@ -225,6 +244,15 @@ func _build_world() -> void:
 		hud["hud_layer"].add_child(key_label)
 	keys_collected = 0
 
+	# Combo label
+	combo_label = Label.new()
+	combo_label.text = ""
+	combo_label.position = Vector2(540, 10)
+	combo_label.add_theme_font_size_override("font_size", 24)
+	combo_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+	combo_label.visible = false
+	hud["hud_layer"].add_child(combo_label)
+
 	# Best time display
 	if GameState.save.best_times.has(current_level):
 		var best : float = GameState.save.best_times[current_level]
@@ -237,6 +265,16 @@ func _build_world() -> void:
 		best_lbl.add_theme_font_size_override("font_size", 14)
 		best_lbl.add_theme_color_override("font_color", Color(0.5, 0.7, 0.5, 0.7))
 		hud["hud_layer"].add_child(best_lbl)
+
+	# Mode indicator
+	if game_mode != "":
+		var mode_lbl := Label.new()
+		mode_lbl.text = game_mode.to_upper()
+		mode_lbl.position = Vector2(580, 695)
+		mode_lbl.add_theme_font_size_override("font_size", 16)
+		var mode_color := Color(1.0, 0.6, 0.2) if game_mode == "daily" else Color(0.8, 0.3, 0.3)
+		mode_lbl.add_theme_color_override("font_color", mode_color)
+		hud["hud_layer"].add_child(mode_lbl)
 
 	_create_vignette(hud["hud_layer"])
 	_create_dash_lines()
@@ -316,7 +354,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # -- Level switching -----------------------------------------------------------
 func _switch_level(to_level: int) -> void:
-	GameState.queue_level_transition(to_level, world_seed)
+	GameState.queue_level_transition(to_level, world_seed, game_mode)
 	_fade_and_reload()
 
 func _fade_in() -> void:
@@ -471,13 +509,18 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 		return
 	Effects.spawn_coin_sparkle(self, coin.global_position, particle_pool)
 	coin.queue_free()
-	score += 1
+	var mult := player_node.add_combo()
+	score += maxi(1, int(mult))
 	Audio.play("coin", -6.0, randf_range(0.9, 1.1))
 	var all_coins := score >= total_coins
 	var all_keys := keys_collected >= require_keys
 	if all_coins and all_keys:
 		level_complete = true
-		if current_level < LevelData.total_levels():
+		if game_mode == "endless":
+			score_label.text = "Next wave!"
+			Audio.play("level_complete", -2.0)
+			_go_next_level()
+		elif current_level < LevelData.total_levels():
 			score_label.text = "Complete! Go to EXIT portal!"
 			_spawn_exit_portal()
 			Audio.play("level_complete", -2.0)
@@ -494,10 +537,12 @@ func _on_enemy_hit(body: Node2D, enemy: Area2D) -> void:
 	if player_node.velocity.y > 0 and player_node.global_position.y < enemy.global_position.y - ENEMY_STOMP_OFFSET:
 		_kill_enemy(enemy)
 		player_node.stomp_bounce()
+		player_node.add_combo()
 		Audio.play("stomp", -4.0)
 		_freeze_frame(0.05)
 	else:
 		player_node.take_damage(1)
+		player_node.reset_combo()
 		var knockback_dir := signf(player_node.global_position.x - enemy.global_position.x)
 		if knockback_dir == 0:
 			knockback_dir = 1
@@ -551,6 +596,17 @@ func _on_shield_changed(has: bool) -> void:
 	shield_label.visible = has
 	if shield_icon:
 		shield_icon.visible = has
+
+func _on_combo_changed(count: int, multiplier: float) -> void:
+	if count < 2:
+		combo_label.visible = false
+	else:
+		combo_label.visible = true
+		combo_label.text = "COMBO x%d  (%.1fx)" % [count, multiplier]
+		# Pop effect
+		combo_label.scale = Vector2(1.3, 1.3)
+		var tw := create_tween()
+		tw.tween_property(combo_label, "scale", Vector2.ONE, 0.15).set_trans(Tween.TRANS_ELASTIC)
 
 func _on_player_died() -> void:
 	death_count += 1
@@ -658,6 +714,15 @@ func _on_spawner_spawn(spawner: Area2D, pos: Vector2) -> void:
 func _on_crumble_collapsed(platform: CrumblePlatform) -> void:
 	Effects.spawn_crumble(self, Vector2(platform.origin_x, platform.origin_y), particle_pool)
 	Audio.play("crumble", -6.0)
+
+func _on_block_destroyed(block: DestructibleBlock) -> void:
+	Effects.spawn_crumble(self, block.global_position, particle_pool)
+	Audio.play("crumble", -4.0)
+	destructibles.erase(block)
+
+func _on_water_oxygen_depleted() -> void:
+	if player_node:
+		player_node.take_damage(1)
 
 # -- Teleportation -------------------------------------------------------------
 func _teleport_to(target: Vector2) -> void:

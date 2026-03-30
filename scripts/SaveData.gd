@@ -6,6 +6,9 @@ extends Resource
 @export var total_coins: int = 0
 @export var best_times: Dictionary = {}  # level_num (int) -> time in seconds (float)
 @export var best_stars: Dictionary = {}  # level_num (int) -> star count (1-3)
+@export var owned_skins: Array = ["default"]  # skin IDs the player owns
+@export var active_skin: String = "default"
+@export var shop_coins: int = 0  # Spendable coins (separate from total_coins)
 
 const SAVE_PATH: String = "user://save.tres"
 

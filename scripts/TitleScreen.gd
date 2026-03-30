@@ -75,7 +75,7 @@ func _build_menu() -> void:
 	cl.name = "MenuLayer"
 	add_child(cl)
 
-	var menu_items := ["PLAY", "LEVEL SELECT", "QUIT"]
+	var menu_items := ["PLAY", "DAILY CHALLENGE", "ENDLESS", "SHOP", "LEVEL SELECT", "QUIT"]
 	var start_y := 440
 
 	for i in menu_items.size():
@@ -161,9 +161,17 @@ func _activate(idx: int) -> void:
 	match idx:
 		0:  # PLAY
 			_fade_to_scene("res://scenes/World.tscn")
-		1:  # LEVEL SELECT
+		1:  # DAILY CHALLENGE
+			GameState.queue_level_transition(1, GameState.daily_seed(), "daily")
+			_fade_to_scene("res://scenes/World.tscn")
+		2:  # ENDLESS
+			GameState.queue_level_transition(1, randi() % 999999, "endless")
+			_fade_to_scene("res://scenes/World.tscn")
+		3:  # SHOP
+			_fade_to_scene("res://scenes/Shop.tscn")
+		4:  # LEVEL SELECT
 			_fade_to_scene("res://scenes/LevelSelect.tscn")
-		2:  # QUIT
+		5:  # QUIT
 			get_tree().quit()
 
 func _fade_to_scene(scene_path: String) -> void:
