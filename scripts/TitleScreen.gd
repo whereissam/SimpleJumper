@@ -60,14 +60,14 @@ func _build_title() -> void:
 	# Animated player sprite
 	var player_sprite := Sprites.make_player_animated()
 	player_sprite.scale = Vector2(4, 4)
-	player_sprite.position = Vector2(640, 370)
+	player_sprite.position = Vector2(640, 320)
 	player_sprite.play("run_right")
 	add_child(player_sprite)
 
 	# Bounce the sprite
 	var tw := create_tween().set_loops()
-	tw.tween_property(player_sprite, "position:y", 355.0, 0.4).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(player_sprite, "position:y", 370.0, 0.4).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(player_sprite, "position:y", 305.0, 0.4).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(player_sprite, "position:y", 320.0, 0.4).set_trans(Tween.TRANS_SINE)
 
 func _build_menu() -> void:
 	var cl := CanvasLayer.new()
@@ -76,21 +76,21 @@ func _build_menu() -> void:
 	add_child(cl)
 
 	var menu_items := ["PLAY", "DAILY CHALLENGE", "ENDLESS", "SHOP", "LEVEL SELECT", "QUIT"]
-	var start_y := 440
+	var start_y := 390
 
 	for i in menu_items.size():
 		var btn_bg := ColorRect.new()
 		btn_bg.name = "BtnBg%d" % i
-		btn_bg.size = Vector2(280, 45)
-		btn_bg.position = Vector2(500, start_y + i * 60)
+		btn_bg.size = Vector2(280, 40)
+		btn_bg.position = Vector2(500, start_y + i * 46)
 		btn_bg.color = Color(0.15, 0.15, 0.3, 0.8) if i != _selected else Color(0.25, 0.25, 0.5, 0.9)
 		cl.add_child(btn_bg)
 
 		var lbl := Label.new()
 		lbl.name = "BtnLbl%d" % i
 		lbl.text = menu_items[i]
-		lbl.position = Vector2(560, start_y + i * 60 + 8)
-		lbl.add_theme_font_size_override("font_size", 24)
+		lbl.position = Vector2(560, start_y + i * 46 + 6)
+		lbl.add_theme_font_size_override("font_size", 20)
 		lbl.add_theme_color_override("font_color", Color(1, 1, 1) if i == _selected else Color(0.6, 0.6, 0.7))
 		cl.add_child(lbl)
 
@@ -98,8 +98,8 @@ func _build_menu() -> void:
 		var arrow := Label.new()
 		arrow.name = "Arrow%d" % i
 		arrow.text = ">"
-		arrow.position = Vector2(515, start_y + i * 60 + 8)
-		arrow.add_theme_font_size_override("font_size", 24)
+		arrow.position = Vector2(515, start_y + i * 46 + 6)
+		arrow.add_theme_font_size_override("font_size", 20)
 		arrow.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
 		arrow.visible = (i == _selected)
 		cl.add_child(arrow)
