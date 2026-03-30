@@ -355,7 +355,24 @@ func _unhandled_input(event: InputEvent) -> void:
 # -- Level switching -----------------------------------------------------------
 func _switch_level(to_level: int) -> void:
 	GameState.queue_level_transition(to_level, world_seed, game_mode)
-	_fade_and_reload()
+	# Show 3D hub room every 5 levels after Lv10
+	if to_level >= 10 and to_level % 5 == 0 and game_mode == "":
+		_fade_to_hub()
+	else:
+		_fade_and_reload()
+
+func _fade_to_hub() -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0)
+	overlay.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cl := CanvasLayer.new()
+	cl.layer = 100
+	cl.add_child(overlay)
+	add_child(cl)
+	var tw := create_tween()
+	tw.tween_property(overlay, "color:a", 1.0, 0.25)
+	tw.tween_callback(get_tree().change_scene_to_file.bind("res://scenes/HubRoom3D.tscn"))
 
 func _fade_in() -> void:
 	var overlay := ColorRect.new()

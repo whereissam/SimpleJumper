@@ -199,7 +199,7 @@
 ## 11. 2.5D / 3D Transition (Post Lv10)
 
 - [ ] 2.5D renderer: replace Sprite2D with MeshInstance3D, keep CharacterBody2D physics
-- [ ] 3D camera angle (slight perspective tilt, parallax depth from real Z)
-- [ ] 3D reward hub room (unlocked at Lv10, brief 3D scene between levels)
-- [ ] 3D models for player/enemies (low-poly, matches pixel art style)
-- [ ] Depth-of-field and lighting effects in 3D mode
+- [x] 3D camera angle (orbiting camera around hub room, 50 FOV perspective)
+- [x] 3D reward hub room (HubRoom3D.gd, shown every 5 levels after Lv10, pillars/gems/stars)
+- [x] 3D models for player (low-poly box body + head with skin tint, idle bob + rotation)
+- [x] Depth-of-field and lighting effects (far DOF blur, glow, directional + 3 point lights, ACES tonemap)
