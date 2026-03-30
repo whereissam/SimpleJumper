@@ -63,24 +63,25 @@ func _build_environment() -> void:
 	env.background_color = Color(0.02, 0.02, 0.06)
 	env.ambient_light_color = Color(0.15, 0.12, 0.25)
 	env.ambient_light_energy = 0.3
-	env.tonemap_mode = Environment.TONE_MAP_ACES
+	env.tonemap_mode = Environment.TONE_MAP_FILMIC
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
 	env.glow_bloom = 0.3
-	# Depth of field
-	env.dof_blur_far_enabled = true
-	env.dof_blur_far_distance = 15.0
-	env.dof_blur_far_transition = 5.0
 
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
-	# Camera
+	# Camera with depth-of-field
 	_camera = Camera3D.new()
 	_camera.position = Vector3(ORBIT_RADIUS, ORBIT_HEIGHT, 0)
 	_camera.look_at(Vector3(0, 1.5, 0))
 	_camera.fov = 50.0
+	var cam_attrs := CameraAttributesPractical.new()
+	cam_attrs.dof_blur_far_enabled = true
+	cam_attrs.dof_blur_far_distance = 15.0
+	cam_attrs.dof_blur_far_transition = 5.0
+	_camera.attributes = cam_attrs
 	add_child(_camera)
 
 	# Directional light (sun-like)
@@ -261,8 +262,8 @@ func _build_hud() -> void:
 	cl.add_child(title)
 
 	var level_lbl := Label.new()
-	var transition := GameState.consume_transition()
-	var lvl := transition.get("level", 0) if not transition.is_empty() else 0
+	var transition : Dictionary = GameState.consume_transition()
+	var lvl : int = int(transition.get("level", 0)) if not transition.is_empty() else 0
 	# Re-queue the transition so World picks it up after reload
 	if not transition.is_empty():
 		GameState.queue_level_transition(transition["level"], transition["seed"], transition.get("mode", ""))

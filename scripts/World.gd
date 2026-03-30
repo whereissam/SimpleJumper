@@ -732,7 +732,7 @@ func _on_crumble_collapsed(platform: CrumblePlatform) -> void:
 	Effects.spawn_crumble(self, Vector2(platform.origin_x, platform.origin_y), particle_pool)
 	Audio.play("crumble", -6.0)
 
-func _on_block_destroyed(block: DestructibleBlock) -> void:
+func _on_block_destroyed(block: StaticBody2D) -> void:
 	Effects.spawn_crumble(self, block.global_position, particle_pool)
 	Audio.play("crumble", -4.0)
 	destructibles.erase(block)

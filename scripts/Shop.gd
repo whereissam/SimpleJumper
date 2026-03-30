@@ -50,8 +50,8 @@ func _build_ui() -> void:
 	var start_y := 140
 	for i in Skins.CATALOG.size():
 		var skin : Dictionary = Skins.CATALOG[i]
-		var owned := skin["id"] in GameState.save.owned_skins
-		var active := skin["id"] == GameState.save.active_skin
+		var owned : bool = skin["id"] in GameState.save.owned_skins
+		var active : bool = skin["id"] == GameState.save.active_skin
 
 		var card := ColorRect.new()
 		card.name = "Card%d" % i

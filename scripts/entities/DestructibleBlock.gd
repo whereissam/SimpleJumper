@@ -5,7 +5,7 @@ var block_width: float
 var block_height: float
 var _destroyed := false
 
-signal destroyed(block: DestructibleBlock)
+signal destroyed(block: StaticBody2D)
 
 func _ready() -> void:
 	# Detect player dash collision via Area2D overlay

@@ -710,7 +710,7 @@ static func make_destructibles(w: Node2D, data: Array, on_destroyed: Callable) -
 		crack.color = Color(0.3, 0.2, 0.15)
 		block.add_child(crack)
 
-		block.destroyed.connect(on_destroyed.bind(block))
+		block.destroyed.connect(on_destroyed)
 		w.add_child(block)
 		blocks.append(block)
 	return blocks

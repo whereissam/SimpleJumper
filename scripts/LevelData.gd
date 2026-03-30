@@ -442,8 +442,8 @@ static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
 				var idx := rng.randi_range(1, platforms.size() - 1)
 				var dp : Array = platforms[idx]
 				# Place block near a platform, slightly offset
-				var bx := dp[0] + rng.randi_range(-50, 50)
-				var by := dp[1] - rng.randi_range(30, 60)
+				var bx : int = int(dp[0]) + rng.randi_range(-50, 50)
+				var by : int = int(dp[1]) - rng.randi_range(30, 60)
 				destructibles.append([bx, by, rng.randi_range(30, 50), rng.randi_range(30, 50)])
 
 	# ── Gravity flip zones [x, y, width, height] ────────────────────────
