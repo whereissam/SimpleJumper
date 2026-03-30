@@ -63,6 +63,7 @@ scripts/
   SaveData.gd       -- Resource-based persistence (best times, stars)
   BulletPool.gd     -- Object pool for bullet reuse
   ParticlePool.gd   -- Object pool for GPU particle reuse
+  CameraFX.gd       -- Cinematic camera (intro, boss tracking, death cam)
   AudioManager.gd   -- SFX pool + procedural music
   Portals.gd        -- Portal creation and teleport logic
   Minimap.gd        -- Minimap overlay

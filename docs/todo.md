@@ -161,3 +161,45 @@
 - [x] Ice/conveyor/wind as Area2D with body_entered signals (self-managing, no World loops)
 - [x] Object pool for bullets (BulletPool.gd, 20 pre-allocated, reuse instead of instantiate/free)
 - [x] Object pool for particle effects (ParticlePool.gd, 24 pre-allocated, reuse instead of instantiate/free)
+
+---
+
+## 9. Camera & Cinematics (CameraFX.gd)
+
+- [x] Smooth camera transition on level start (zoom from 0.55x overview to 1.0x player)
+- [x] Camera zoom-out on level complete (zoom to 0.6x to reveal full map)
+- [x] Camera track boss (dynamic zoom-out based on player-boss distance, 0.55x-1.0x)
+- [x] Cinematic pan to exit portal when spawned (camera detours to portal, then snaps back)
+- [x] Death camera (0.4x slow-mo + 1.3x zoom-in, then restore)
+- [x] Camera bounds (computed from platform_data/wall_data, dynamic per level)
+
+---
+
+## 10. Gameplay -- Next Features
+
+### Combat & Scoring
+- [ ] Combo system (chain stomps/coins without landing for score multiplier)
+- [ ] Unlockable player skins with different stats (tank, speedster, floaty)
+- [ ] Shop (spend coins on cosmetics or permanent upgrades between runs)
+
+### Level Variety
+- [ ] Water/swim sections (different physics, oxygen timer)
+- [ ] Gravity flip zones (walk on ceilings)
+- [ ] Destructible blocks (dash through breakable walls for secrets)
+- [ ] Mini-boss variants (unique boss pattern per difficulty tier)
+- [ ] Moving platform paths (curved rails, not just linear)
+
+### Modes
+- [ ] Timed challenge mode (speedrun with ghost replay)
+- [ ] Daily seed (same generated level for everyone each day)
+- [ ] Endless mode (no exit portal, survive as long as possible, escalating difficulty)
+
+---
+
+## 11. 2.5D / 3D Transition (Post Lv10)
+
+- [ ] 2.5D renderer: replace Sprite2D with MeshInstance3D, keep CharacterBody2D physics
+- [ ] 3D camera angle (slight perspective tilt, parallax depth from real Z)
+- [ ] 3D reward hub room (unlocked at Lv10, brief 3D scene between levels)
+- [ ] 3D models for player/enemies (low-poly, matches pixel art style)
+- [ ] Depth-of-field and lighting effects in 3D mode

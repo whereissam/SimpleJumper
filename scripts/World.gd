@@ -81,6 +81,7 @@ var world_seed     := 0
 var pause_menu       : CanvasLayer
 var vignette_rect    : ColorRect
 var dash_lines_layer : CanvasLayer
+var camera_fx        : CameraFX
 
 
 # ==============================================================================
@@ -188,6 +189,8 @@ func _build_world() -> void:
 		shooter.fired.connect(_on_shooter_fired)
 	if boss_node:
 		boss_node.fired.connect(_on_boss_fired)
+		if camera_fx:
+			camera_fx.start_boss_tracking()
 	for sp in spawners:
 		sp.enemy_spawned.connect(_on_spawner_spawn)
 	for cb in crumble_bodies:
@@ -238,8 +241,15 @@ func _build_world() -> void:
 	_create_vignette(hud["hud_layer"])
 	_create_dash_lines()
 	_setup_pause_handler()
+
+	# Camera cinematics
+	camera_fx = CameraFX.new()
+	camera_fx.setup(player_node, self)
+	camera_fx.compute_bounds(platform_data, wall_data)
+
 	Audio.start_music()
 	_fade_in()
+	camera_fx.play_intro()
 
 	var mm := Mmp.make_minimap(
 		hud["hud_layer"], platform_data, wall_data,
@@ -263,6 +273,10 @@ func _process(delta: float) -> void:
 
 	_update_vignette()
 	_update_dash_lines()
+
+	# Boss camera tracking
+	if camera_fx and boss_node and is_instance_valid(boss_node):
+		camera_fx.update_boss_tracking(boss_node.global_position)
 
 	if not level_complete:
 		elapsed_time += delta
@@ -336,6 +350,8 @@ func _fade_and_reload() -> void:
 func _go_next_level() -> void:
 	var stars := GameState.calc_stars(current_level, elapsed_time)
 	Effects.show_level_complete(self, stars, elapsed_time)
+	if camera_fx:
+		camera_fx.play_level_complete_zoom()
 	GameState.complete_level(current_level, elapsed_time)
 	GameState.session_coins += score
 	current_level += 1
@@ -426,6 +442,8 @@ func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 			_freeze_frame(0.12)
 			_kill_enemy(boss)
 			boss_node = null
+			if camera_fx:
+				camera_fx.stop_boss_tracking()
 			Audio.play("level_complete", -2.0)
 	else:
 		player_node.take_damage(1)
@@ -536,6 +554,8 @@ func _on_shield_changed(has: bool) -> void:
 
 func _on_player_died() -> void:
 	death_count += 1
+	if camera_fx:
+		camera_fx.play_death_cam()
 	Effects.show_death_overlay(self, death_count, score, total_coins, elapsed_time)
 	score = 0
 	elapsed_time = 0.0
@@ -653,6 +673,8 @@ func _teleport_to(target: Vector2) -> void:
 # -- Exit portal ---------------------------------------------------------------
 func _spawn_exit_portal() -> void:
 	next_portal = Ptl.spawn_exit_portal(self, _on_exit_portal_entered)
+	if camera_fx and next_portal:
+		camera_fx.cinematic_pan_to(next_portal.global_position)
 
 # -- Effects (delegated to Effects.gd) -----------------------------------------
 
