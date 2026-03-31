@@ -674,9 +674,9 @@ func _on_shield_changed(has: bool) -> void:
 		shield_icon.visible = has
 
 func _on_ground_pound(pos: Vector2) -> void:
-	# Kill enemies within radius
-	var radius := Player.GROUND_POUND_SPEED * 0.1  # ~80px
+	var radius : float = 80.0
 	var killed := 0
+	# Check all enemy types
 	for enemy in patrol_enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
 			_kill_enemy(enemy)
@@ -689,6 +689,23 @@ func _on_ground_pound(pos: Vector2) -> void:
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
 			_kill_enemy(enemy)
 			killed += 1
+	for enemy in shielded_enemies.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
+			_kill_enemy(enemy)
+			killed += 1
+	for enemy in spawners.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
+			_kill_enemy(enemy)
+			spawners.erase(enemy)
+			killed += 1
+	if boss_node and is_instance_valid(boss_node) and boss_node.global_position.distance_to(pos) < radius:
+		var remaining := (boss_node as BossEnemy).take_hit()
+		killed += 1
+		if remaining <= 0:
+			_kill_enemy(boss_node)
+			boss_node = null
+			if camera_fx:
+				camera_fx.stop_boss_tracking()
 	if killed > 0:
 		player_node.add_combo()
 		Audio.play("stomp", -2.0, 0.7)

@@ -25,7 +25,6 @@ const WALL_CLIMB_SPEED := -100.0
 
 # ── Glider ───────────────────────────────────────────────────────────────────
 const GLIDE_FALL_SPEED := 60.0
-const GLIDE_H_BOOST    := 1.3
 
 # ── Grapple ──────────────────────────────────────────────────────────────────
 const GRAPPLE_SPEED    := 600.0
@@ -211,7 +210,7 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.y = GROUND_POUND_SPEED
 		is_gliding = false
-		is_grappling = false
+		_end_grapple()
 	if is_ground_pounding:
 		velocity.y = GROUND_POUND_SPEED
 		if is_on_floor():
@@ -265,9 +264,10 @@ func _physics_process(delta: float) -> void:
 	elif not is_wall_sliding and was_wall_sliding:
 		Audio.stop_loop()
 
-	# ── Glider (hold jump while falling) ──────────────────────────────────
-	var want_glide := not is_on_floor() and velocity.y > 0 and not is_wall_sliding \
-		and not is_dashing and not is_ground_pounding and not is_grappling \
+	# ── Glider (hold jump while falling, only after all jumps used) ───────
+	var want_glide := not is_on_floor() and velocity.y > 0 and jumps_left <= 0 \
+		and not is_wall_sliding and not is_dashing and not is_ground_pounding \
+		and not is_grappling \
 		and (Input.is_action_pressed("ui_accept") or Input.is_action_pressed("ui_up"))
 	is_gliding = want_glide
 	if is_gliding:
