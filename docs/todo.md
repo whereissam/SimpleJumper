@@ -198,7 +198,7 @@
 
 ## 11. 2.5D / 3D Transition (Post Lv10)
 
-- [ ] 2.5D renderer: replace Sprite2D with MeshInstance3D, keep CharacterBody2D physics
+- [x] 2.5D renderer: Renderer25D.gd overlays 3D meshes on 2D physics, toggle with V key
 - [x] 3D camera angle (orbiting camera around hub room, 50 FOV perspective)
 - [x] 3D reward hub room (HubRoom3D.gd, shown every 5 levels after Lv10, pillars/gems/stars)
 - [x] 3D models for player (low-poly box body + head with skin tint, idle bob + rotation)

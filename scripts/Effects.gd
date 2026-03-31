@@ -210,6 +210,7 @@ static func create_pause_menu(w: Node2D) -> CanvasLayer:
 		["Reroll Map", "R"],
 		["Next Level", "N"],
 		["Prev Level", "B"],
+		["Toggle 2.5D", "V"],
 	]
 
 	var y_pos := 185
