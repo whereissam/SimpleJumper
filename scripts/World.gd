@@ -359,6 +359,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # -- 2.5D toggle ---------------------------------------------------------------
 func _toggle_25d() -> void:
+	if not player_node or not is_instance_valid(player_node):
+		return
 	is_25d = not is_25d
 	if is_25d:
 		if not renderer_25d:
@@ -368,32 +370,18 @@ func _toggle_25d() -> void:
 		else:
 			renderer_25d.visible = true
 			renderer_25d.set_process(true)
-		# Hide 2D camera
+			renderer_25d.rescan()
 		var cam_2d := player_node.get_node_or_null("Camera2D") as Camera2D
 		if cam_2d:
 			cam_2d.enabled = false
 	else:
 		if renderer_25d:
+			renderer_25d.restore_2d_sprites()
 			renderer_25d.visible = false
 			renderer_25d.set_process(false)
-		# Restore 2D visuals
-		_restore_2d_sprites()
 		var cam_2d := player_node.get_node_or_null("Camera2D") as Camera2D
 		if cam_2d:
 			cam_2d.enabled = true
-
-func _restore_2d_sprites() -> void:
-	# Re-show all hidden 2D sprites
-	for child in get_children():
-		if child is CanvasLayer and child.layer < 0:
-			child.visible = true
-	_restore_visuals_recursive(self)
-
-func _restore_visuals_recursive(node: Node) -> void:
-	for child in node.get_children():
-		if child is Sprite2D or child is AnimatedSprite2D or child is Polygon2D:
-			child.visible = true
-		_restore_visuals_recursive(child)
 
 # -- Level switching -----------------------------------------------------------
 func _switch_level(to_level: int) -> void:

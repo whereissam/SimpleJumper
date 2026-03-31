@@ -14,6 +14,7 @@ const DEPTH_BG        := 0.5
 var _camera: Camera3D
 var _env: WorldEnvironment
 var _proxies: Dictionary = {}  # Node2D -> MeshInstance3D
+var _hidden_nodes: Array = []  # Nodes we hid — only restore these
 var _world_2d: Node2D
 var _enabled := false
 
@@ -80,26 +81,28 @@ func _scan_and_create_proxies() -> void:
 	if not _world_2d:
 		return
 
-	# Player
+	# Player (skip if already proxied)
 	var player := _find_node_by_class(_world_2d, "Player")
-	if player:
+	if player and not _proxies.has(player):
 		var mesh := _create_character_proxy(player, Color(0.2, 0.7, 0.3), DEPTH_PLAYER, Vector3(0.5, 0.7, 0.3))
 		_proxies[player] = mesh
 
 	# Platforms (StaticBody2D children with sprites)
 	for node in _world_2d.get_children():
+		if _proxies.has(node):
+			continue
 		if node is StaticBody2D and not node is DestructibleBlock:
 			var size := _estimate_body_size(node)
 			if size.x > 0:
-				var mesh := _create_box_proxy(node, _get_platform_color(node), DEPTH_PLATFORMS, Vector3(size.x * SCALE, size.y * SCALE, 0.3))
-				_proxies[node] = mesh
+				_proxies[node] = _create_box_proxy(node, _get_platform_color(node), DEPTH_PLATFORMS, Vector3(size.x * SCALE, size.y * SCALE, 0.3))
 		elif node is DestructibleBlock:
 			var db := node as DestructibleBlock
-			var mesh := _create_box_proxy(node, Color(0.6, 0.45, 0.3), DEPTH_PLATFORMS, Vector3(db.block_width * SCALE, db.block_height * SCALE, 0.25))
-			_proxies[node] = mesh
+			_proxies[node] = _create_box_proxy(node, Color(0.6, 0.45, 0.3), DEPTH_PLATFORMS, Vector3(db.block_width * SCALE, db.block_height * SCALE, 0.25))
 
 	# Enemies (Area2D with specific class names)
 	for node in _world_2d.get_children():
+		if _proxies.has(node):
+			continue
 		if node is PatrolEnemy:
 			_proxies[node] = _create_character_proxy(node, Color(0.9, 0.25, 0.2), DEPTH_ENEMIES, Vector3(0.45, 0.55, 0.25))
 		elif node is JumpingEnemy:
@@ -113,15 +116,20 @@ func _scan_and_create_proxies() -> void:
 
 	# Coins
 	for node in _world_2d.get_tree().get_nodes_in_group("coins"):
-		_proxies[node] = _create_gem_proxy(node, Color(1.0, 0.85, 0.15), DEPTH_ITEMS)
+		if not _proxies.has(node):
+			_proxies[node] = _create_gem_proxy(node, Color(1.0, 0.85, 0.15), DEPTH_ITEMS)
 
 	# Spikes / saws (Area2D hazards)
 	for node in _world_2d.get_children():
+		if _proxies.has(node):
+			continue
 		if node is Area2D and node.has_meta("hazard"):
 			_proxies[node] = _create_box_proxy(node, Color(0.8, 0.2, 0.2), DEPTH_HAZARDS, Vector3(0.3, 0.2, 0.15))
 
 	# AnimatableBody2D (moving platforms)
 	for node in _world_2d.get_children():
+		if _proxies.has(node):
+			continue
 		if node is AnimatableBody2D:
 			var size := _estimate_body_size(node)
 			if size.x > 0:
@@ -129,6 +137,8 @@ func _scan_and_create_proxies() -> void:
 
 	# Walls
 	for node in _world_2d.get_children():
+		if _proxies.has(node):
+			continue
 		if node is StaticBody2D and node.has_meta("wall"):
 			var size := _estimate_body_size(node)
 			if size.x > 0:
@@ -169,27 +179,42 @@ func _update_camera() -> void:
 	_camera.look_at(Vector3(px, py, 0.0))
 
 func _hide_2d_sprites() -> void:
-	# Hide all Sprite2D, AnimatedSprite2D, Polygon2D, ColorRect visual nodes
-	# but keep CanvasLayer HUD visible
+	_hidden_nodes.clear()
+	# Hide visuals on proxied nodes
 	for node in _proxies:
 		if not is_instance_valid(node):
 			continue
 		_hide_visuals_recursive(node)
-
 	# Hide background (CanvasLayer -10)
 	for child in _world_2d.get_children():
 		if child is CanvasLayer and child.layer < 0:
-			child.visible = false
+			if child.visible:
+				child.visible = false
+				_hidden_nodes.append(child)
 
 func _hide_visuals_recursive(node: Node) -> void:
 	for child in node.get_children():
-		if child is Sprite2D or child is AnimatedSprite2D:
-			child.visible = false
-		elif child is Polygon2D:
-			child.visible = false
+		if child is Sprite2D or child is AnimatedSprite2D or child is Polygon2D:
+			if child.visible:
+				child.visible = false
+				_hidden_nodes.append(child)
 		elif child is ColorRect and not child.get_parent() is CanvasLayer:
-			child.visible = false
+			if child.visible:
+				child.visible = false
+				_hidden_nodes.append(child)
 		_hide_visuals_recursive(child)
+
+func restore_2d_sprites() -> void:
+	## Re-show only the nodes we actually hid.
+	for node in _hidden_nodes:
+		if is_instance_valid(node):
+			node.visible = true
+	_hidden_nodes.clear()
+
+func rescan() -> void:
+	## Rescan scene for new nodes and re-hide 2D sprites.
+	_scan_and_create_proxies()
+	_hide_2d_sprites()
 
 # ── Proxy factory methods ────────────────────────────────────────────────────
 
@@ -290,4 +315,7 @@ func _find_node_by_class(root: Node, cls: String) -> Node2D:
 	for child in root.get_children():
 		if child.get_class() == cls or (child.get_script() and child.get_script().get_global_name() == cls):
 			return child as Node2D
+		var found := _find_node_by_class(child, cls)
+		if found:
+			return found
 	return null
