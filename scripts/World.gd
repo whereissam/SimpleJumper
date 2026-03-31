@@ -226,6 +226,7 @@ func _build_world() -> void:
 	player_node.player_died.connect(_on_player_died)
 	player_node.shield_changed.connect(_on_shield_changed)
 	player_node.combo_changed.connect(_on_combo_changed)
+	player_node.ground_pound_landed.connect(_on_ground_pound)
 
 	var hud := Bld.make_hud(self, total_coins, level, current_level)
 	score_label  = hud["score_label"]
@@ -671,6 +672,27 @@ func _on_shield_changed(has: bool) -> void:
 	shield_label.visible = has
 	if shield_icon:
 		shield_icon.visible = has
+
+func _on_ground_pound(pos: Vector2) -> void:
+	# Kill enemies within radius
+	var radius := Player.GROUND_POUND_SPEED * 0.1  # ~80px
+	var killed := 0
+	for enemy in patrol_enemies.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
+			_kill_enemy(enemy)
+			killed += 1
+	for enemy in jumping_enemies.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
+			_kill_enemy(enemy)
+			killed += 1
+	for enemy in flying_enemies.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(pos) < radius:
+			_kill_enemy(enemy)
+			killed += 1
+	if killed > 0:
+		player_node.add_combo()
+		Audio.play("stomp", -2.0, 0.7)
+	Effects.spawn_burst(self, pos, Color(1.0, 0.6, 0.2), 16, 100.0, 0.4, particle_pool)
 
 func _on_combo_changed(count: int, multiplier: float) -> void:
 	if count < 2:

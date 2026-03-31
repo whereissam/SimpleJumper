@@ -199,6 +199,16 @@
 ## 11. 2.5D / 3D Transition (Post Lv10)
 
 - [x] 2.5D renderer: Renderer25D.gd overlays 3D meshes on 2D physics, toggle with V key
+
+---
+
+## 12. Advanced Movement & Interactivity
+
+- [x] Grappling hook (C key, aim with mouse, pull toward target within 350px range)
+- [x] Glider/parachute (hold Jump while falling to float at 60px/s)
+- [x] Wall climb (hold Up while wall sliding to climb upward)
+- [x] Ground pound (X key in air, slam down at 800px/s, damages nearby enemies on landing)
+- [x] Dash-kill (dash through enemies to kill them, works on all enemy types)
 - [x] 3D camera angle (orbiting camera around hub room, 50 FOV perspective)
 - [x] 3D reward hub room (HubRoom3D.gd, shown every 5 levels after Lv10, pillars/gems/stars)
 - [x] 3D models for player (low-poly box body + head with skin tint, idle bob + rotation)

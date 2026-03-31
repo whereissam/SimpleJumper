@@ -18,9 +18,21 @@ const TRIPLE_JUMP_LEVEL := 5   # Unlock triple jump at level 5
 const LONG_DASH_LEVEL   := 10  # Unlock longer dash at level 10
 const LONG_DASH_DURATION := 0.25
 
-# ── Wall Jump ────────────────────────────────────────────────────────────────
+# ── Wall Jump / Climb ────────────────────────────────────────────────────────
 const WALL_SLIDE_SPEED := 120.0
 const WALL_JUMP_VEL    := Vector2(380.0, -480.0)
+const WALL_CLIMB_SPEED := -100.0
+
+# ── Glider ───────────────────────────────────────────────────────────────────
+const GLIDE_FALL_SPEED := 60.0
+const GLIDE_H_BOOST    := 1.3
+
+# ── Grapple ──────────────────────────────────────────────────────────────────
+const GRAPPLE_SPEED    := 600.0
+const GRAPPLE_RANGE    := 350.0
+
+# ── Ground Pound ─────────────────────────────────────────────────────────────
+const GROUND_POUND_SPEED := 800.0
 
 # ── State ────────────────────────────────────────────────────────────────────
 var jumps_left     := 2
@@ -34,8 +46,20 @@ var dash_cooldown  := 0.0
 var dash_dir       := 1
 var is_dashing     := false
 
-# Wall jump
+# Wall jump / climb
 var is_wall_sliding := false
+var is_wall_climbing := false
+
+# Glider
+var is_gliding := false
+
+# Grapple
+var is_grappling := false
+var grapple_target := Vector2.ZERO
+var grapple_line : Line2D
+
+# Ground pound
+var is_ground_pounding := false
 
 # Drop-through
 var drop_timer     := 0.0
@@ -92,6 +116,7 @@ signal hp_changed(new_hp: int)
 signal player_died
 signal shield_changed(has: bool)
 signal combo_changed(count: int, multiplier: float)
+signal ground_pound_landed(pos: Vector2)
 
 func apply_unlocks(highest_level: int) -> void:
 	if highest_level >= TRIPLE_JUMP_LEVEL:
@@ -173,24 +198,80 @@ func _physics_process(delta: float) -> void:
 		jumps_left   = max_jumps
 		coyote_timer = 0.13
 		is_wall_sliding = false
+		is_gliding = false
+		if is_grappling:
+			_end_grapple()
 	else:
 		velocity.y  += GRAVITY * delta
 		coyote_timer = maxf(coyote_timer - delta, 0.0)
 
-	# ── Wall slide ────────────────────────────────────────────────────────
+	# ── Ground pound (X in air) ───────────────────────────────────────────
+	if not is_on_floor() and not is_ground_pounding and Input.is_action_just_pressed("ground_pound"):
+		is_ground_pounding = true
+		velocity.x = 0.0
+		velocity.y = GROUND_POUND_SPEED
+		is_gliding = false
+		is_grappling = false
+	if is_ground_pounding:
+		velocity.y = GROUND_POUND_SPEED
+		if is_on_floor():
+			is_ground_pounding = false
+			camera_shake(6.0, 0.15)
+			_spawn_landing_ring()
+			Audio.play("land", -2.0)
+			ground_pound_landed.emit(global_position + Vector2(0, 20))
+
+	# ── Grapple (C key, aim toward mouse) ─────────────────────────────────
+	if Input.is_action_just_pressed("grapple") and not is_grappling:
+		var mouse := get_global_mouse_position()
+		var dist := global_position.distance_to(mouse)
+		if dist <= GRAPPLE_RANGE:
+			is_grappling = true
+			grapple_target = mouse
+			is_gliding = false
+			if not grapple_line:
+				grapple_line = Line2D.new()
+				grapple_line.width = 2.0
+				grapple_line.default_color = Color(0.8, 0.8, 0.4, 0.8)
+				grapple_line.z_index = 5
+				get_parent().add_child(grapple_line)
+	if is_grappling:
+		var dir_to_target := (grapple_target - global_position).normalized()
+		velocity = dir_to_target * GRAPPLE_SPEED
+		if grapple_line:
+			grapple_line.clear_points()
+			grapple_line.add_point(global_position)
+			grapple_line.add_point(grapple_target)
+		if global_position.distance_to(grapple_target) < 20.0 or is_on_floor() or is_on_wall():
+			_end_grapple()
+
+	# ── Wall slide / Wall climb ───────────────────────────────────────────
 	var was_wall_sliding := is_wall_sliding
 	is_wall_sliding = false
-	if not is_on_floor() and is_on_wall():
+	is_wall_climbing = false
+	if not is_on_floor() and is_on_wall() and not is_grappling:
 		var dir := Input.get_axis("ui_left", "ui_right")
 		if (dir > 0.0 and _wall_on_right()) or (dir < 0.0 and _wall_on_left()):
 			is_wall_sliding = true
 			velocity.y = minf(velocity.y, WALL_SLIDE_SPEED)
 			jumps_left = 1
+			# Wall climb: hold Up while wall sliding
+			if Input.is_action_pressed("ui_up"):
+				is_wall_climbing = true
+				velocity.y = WALL_CLIMB_SPEED
 	# Wall slide sound
 	if is_wall_sliding and not was_wall_sliding:
 		Audio.play_loop("wall_slide", -14.0)
 	elif not is_wall_sliding and was_wall_sliding:
 		Audio.stop_loop()
+
+	# ── Glider (hold jump while falling) ──────────────────────────────────
+	var want_glide := not is_on_floor() and velocity.y > 0 and not is_wall_sliding \
+		and not is_dashing and not is_ground_pounding and not is_grappling \
+		and (Input.is_action_pressed("ui_accept") or Input.is_action_pressed("ui_up"))
+	is_gliding = want_glide
+	if is_gliding:
+		velocity.y = minf(velocity.y, GLIDE_FALL_SPEED)
 
 	# ── Jump input buffer ─────────────────────────────────────────────────
 	if Input.is_action_just_pressed("ui_accept") \
@@ -356,6 +437,9 @@ func _finish_death() -> void:
 	velocity   = Vector2.ZERO
 	jumps_left = max_jumps
 	invincible = INVINCIBLE_AFTER_RESPAWN
+	is_ground_pounding = false
+	is_gliding = false
+	_end_grapple()
 	set_physics_process(true)
 	player_died.emit()
 	hp_changed.emit(hp)
@@ -372,6 +456,12 @@ func grant_shield() -> void:
 
 func grant_speed_boost(duration: float) -> void:
 	speed_boost = duration
+
+func _end_grapple() -> void:
+	is_grappling = false
+	if grapple_line:
+		grapple_line.queue_free()
+		grapple_line = null
 
 func add_combo() -> float:
 	## Increments combo, resets timer, returns current multiplier.
@@ -463,11 +553,29 @@ func _update_animation() -> void:
 	var asp := anim as AnimatedSprite2D
 	var suffix := "_right" if facing > 0 else "_left"
 
-	if is_wall_sliding:
+	if is_ground_pounding:
+		asp.play("fall" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
+		asp.rotation += 0.5  # Fast spin
+	elif is_grappling:
+		asp.play("jump" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
+		# Tilt toward grapple target
+		var angle_to := global_position.angle_to_point(grapple_target)
+		asp.rotation = lerp_angle(asp.rotation, angle_to + PI, 0.2)
+	elif is_wall_climbing:
 		asp.play("wall" + suffix)
 		asp.scale = Sprites.SCALE_CHAR
-		# Tilt toward the wall
+		asp.rotation = 0.0
+	elif is_wall_sliding:
+		asp.play("wall" + suffix)
+		asp.scale = Sprites.SCALE_CHAR
 		asp.rotation = 0.2 if facing > 0 else -0.2
+	elif is_gliding:
+		asp.play("fall" + suffix)
+		# Spread wide, flatten vertically = parachute look
+		asp.scale = Vector2(Sprites.SCALE_CHAR.x * 1.4, Sprites.SCALE_CHAR.y * 0.7)
+		asp.rotation = 0.0
 	elif not is_on_floor():
 		if velocity.y < 0:
 			asp.play("jump" + suffix)
