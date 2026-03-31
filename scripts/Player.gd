@@ -421,9 +421,9 @@ func _set_hitbox_height(h: float) -> void:
 	var cs := col as CollisionShape2D
 	var shape := cs.shape as RectangleShape2D
 	shape.size.y = h
-	# Keep feet on ground: shift hitbox up (negative = up)
-	cs.position.y = -(STAND_HEIGHT - h) * 0.5
-	# Shift sprite down to match
+	# Keep feet on ground: shift hitbox down so bottom stays at same Y
+	cs.position.y = (STAND_HEIGHT - h) * 0.5
+	# Shift sprite to match crouch position
 	var anim : Node = get_node_or_null("Anim")
 	if anim:
 		anim.position.y = (STAND_HEIGHT - h) * 0.25

@@ -2,8 +2,8 @@ class_name LevelData
 
 # Every level is randomly generated using seed + level number
 # Level number controls difficulty (higher = harder)
-static func get_level(num: int, seed_val: int = 0) -> Dictionary:
-	return generate_random(num, seed_val)
+static func get_level(num: int, seed_val: int = 0, mode: String = "") -> Dictionary:
+	return generate_random(num, seed_val, mode)
 
 static func total_levels() -> int:
 	return 999  # Infinite levels
@@ -11,12 +11,18 @@ static func total_levels() -> int:
 # ══════════════════════════════════════════════════════════════════════════════
 # RANDOM LEVEL GENERATOR -- 6 layout styles, fully procedural
 # ══════════════════════════════════════════════════════════════════════════════
-static func generate_random(num: int, seed_val: int = 0) -> Dictionary:
+static func generate_random(num: int, seed_val: int = 0, mode: String = "") -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_val * 7919 + num * 1301
 
-	# Steeper difficulty curve: Lv1=0.0, Lv3=0.3, Lv5=0.55, Lv8=0.85, Lv11=1.0
-	var difficulty : float = clampf((num - 1) * 0.15, 0.0, 1.0)
+	# Difficulty curve -- endless mode ramps much slower
+	var difficulty : float
+	if mode == "endless":
+		# Endless: Lv1=0.0, Lv5=0.2, Lv10=0.45, Lv20=0.85, Lv25=1.0
+		difficulty = clampf((num - 1) * 0.05, 0.0, 1.0)
+	else:
+		# Normal: Lv1=0.0, Lv3=0.3, Lv5=0.55, Lv8=0.85, Lv11=1.0
+		difficulty = clampf((num - 1) * 0.15, 0.0, 1.0)
 
 	var platforms : Array = []
 	var coins : Array = []

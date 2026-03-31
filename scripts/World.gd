@@ -100,11 +100,11 @@ func _ready() -> void:
 		game_mode = transition.get("mode", "")
 	else:
 		world_seed = randi() % 999999
-	_load_level(current_level)
+	_load_level(current_level, game_mode)
 	_build_world()
 
-func _load_level(num: int) -> void:
-	level = LevelData.get_level(num, world_seed + num)
+func _load_level(num: int, mode: String = "") -> void:
+	level = LevelData.get_level(num, world_seed + num, mode)
 	platform_data        = level.get("platforms", [])
 	moving_platform_data = level.get("moving", [])
 	wall_data            = level.get("walls", [])
@@ -527,9 +527,12 @@ func _on_boss_hit(body: Node2D, boss: Area2D) -> void:
 	if body != player_node:
 		return
 	var boss_enemy := boss as BossEnemy
-	if player_node.velocity.y > 0 and player_node.global_position.y < boss.global_position.y - BOSS_STOMP_OFFSET:
+	var is_stomp := player_node.velocity.y > 0 and player_node.global_position.y < boss.global_position.y - BOSS_STOMP_OFFSET
+	if is_stomp or player_node.is_dashing:
 		var remaining_hp := boss_enemy.take_hit()
-		player_node.stomp_bounce()
+		if is_stomp:
+			player_node.stomp_bounce()
+		player_node.add_combo()
 		Audio.play("stomp", -2.0)
 		_freeze_frame(0.08)
 		player_node.camera_shake(6.0, 0.2)
@@ -593,12 +596,19 @@ func _on_coin_entered(body: Node2D, coin: Area2D) -> void:
 func _on_enemy_hit(body: Node2D, enemy: Area2D) -> void:
 	if body != player_node:
 		return
+	# Stomp from above
 	if player_node.velocity.y > 0 and player_node.global_position.y < enemy.global_position.y - ENEMY_STOMP_OFFSET:
 		_kill_enemy(enemy)
 		player_node.stomp_bounce()
 		player_node.add_combo()
 		Audio.play("stomp", -4.0)
 		_freeze_frame(0.05)
+	# Dash-kill: dashing through enemies kills them
+	elif player_node.is_dashing:
+		_kill_enemy(enemy)
+		player_node.add_combo()
+		Audio.play("stomp", -4.0, 0.8)
+		_freeze_frame(0.04)
 	else:
 		player_node.take_damage(1)
 		player_node.reset_combo()
@@ -617,6 +627,12 @@ func _on_shielded_hit(body: Node2D, enemy: Area2D) -> void:
 		player_node.stomp_bounce()
 		Audio.play("stomp", -4.0)
 		_freeze_frame(0.05)
+	elif player_node.is_dashing:
+		# Dash breaks shield in one hit
+		_kill_enemy(enemy)
+		player_node.add_combo()
+		Audio.play("stomp", -4.0, 0.8)
+		_freeze_frame(0.04)
 	else:
 		player_node.take_damage(1)
 		var knockback_dir := signf(player_node.global_position.x - enemy.global_position.x)
