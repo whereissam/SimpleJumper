@@ -34,7 +34,6 @@ func _build_3d_scene() -> void:
 	env.background_color = Color(0.04, 0.04, 0.1)
 	env.ambient_light_color = Color(0.6, 0.6, 0.8)
 	env.ambient_light_energy = 0.5
-	env.tonemap_mode = Environment.TONE_MAP_FILMIC
 	env.glow_enabled = true
 	env.glow_intensity = 0.3
 	env.glow_bloom = 0.15
