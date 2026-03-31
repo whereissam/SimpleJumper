@@ -244,16 +244,11 @@ func _physics_process(delta: float) -> void:
 	# ── Crouch (hold Down) ────────────────────────────────────────────────
 	var want_crouch := Input.is_action_pressed("ui_down") and is_on_floor() and not is_dashing
 	if want_crouch and not is_crouching:
-		# Start crouching
 		is_crouching = true
 		_set_hitbox_height(CROUCH_HEIGHT)
 	elif not want_crouch and is_crouching:
 		is_crouching = false
 		_set_hitbox_height(STAND_HEIGHT)
-		# Reset sprite position
-		var anim : Node = get_node_or_null("Anim")
-		if anim:
-			anim.position.y = 0
 
 	# Down tap while crouching = drop through platform
 	if Input.is_action_just_pressed("ui_down") and is_on_floor():
@@ -420,13 +415,17 @@ func _set_hitbox_height(h: float) -> void:
 		return
 	var cs := col as CollisionShape2D
 	var shape := cs.shape as RectangleShape2D
+	var old_bottom : float = cs.position.y + shape.size.y * 0.5
 	shape.size.y = h
-	# Keep feet on ground: shift hitbox down so bottom stays at same Y
-	cs.position.y = (STAND_HEIGHT - h) * 0.5
-	# Shift sprite to match crouch position
+	# Keep the bottom edge (feet) at the same Y
+	cs.position.y = old_bottom - h * 0.5
+	# Shift sprite to match
 	var anim : Node = get_node_or_null("Anim")
 	if anim:
-		anim.position.y = (STAND_HEIGHT - h) * 0.25
+		if h < STAND_HEIGHT:
+			anim.position.y = cs.position.y * 0.5
+		else:
+			anim.position.y = 0
 
 func set_checkpoint(pos: Vector2) -> void:
 	respawn_pos = pos
