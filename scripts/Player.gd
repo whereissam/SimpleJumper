@@ -42,7 +42,7 @@ var drop_timer     := 0.0
 
 # Crouch
 var is_crouching   := false
-const CROUCH_HEIGHT := 26.0   # Half of normal 50px
+const CROUCH_HEIGHT := 18.0   # Small enough to fit between platforms
 const STAND_HEIGHT  := 50.0
 
 # Health
@@ -86,6 +86,7 @@ const INVINCIBLE_AFTER_RESPAWN := 2.0
 
 # Crouch movement multiplier
 const CROUCH_SPEED_MULT := 0.4
+const PLAYER_FRAME_HEIGHT := 24.0
 
 signal hp_changed(new_hp: int)
 signal player_died
@@ -414,18 +415,31 @@ func _set_hitbox_height(h: float) -> void:
 	if not col:
 		return
 	var cs := col as CollisionShape2D
-	var shape := cs.shape as RectangleShape2D
-	var old_bottom : float = cs.position.y + shape.size.y * 0.5
-	shape.size.y = h
-	# Keep the bottom edge (feet) at the same Y
-	cs.position.y = old_bottom - h * 0.5
-	# Shift sprite to match
+	var new_shape := RectangleShape2D.new()
+	new_shape.size = Vector2(36, h)
+	cs.shape = new_shape
+	# Shift collision AND sprite down equally so feet stay on ground.
+	# Standing: shape centered at 0, bottom at +25.
+	# Crouch: we want bottom still at +25, so center at 25 - h/2.
+	var offset : float = (STAND_HEIGHT - h) * 0.5
+	cs.position.y = offset
+	_sync_anim_floor_anchor()
+
+func _sync_anim_floor_anchor() -> void:
 	var anim : Node = get_node_or_null("Anim")
-	if anim:
-		if h < STAND_HEIGHT:
-			anim.position.y = cs.position.y * 0.5
-		else:
-			anim.position.y = 0
+	if not anim or not anim is AnimatedSprite2D:
+		return
+
+	var asp := anim as AnimatedSprite2D
+	var hitbox_offset := 0.0
+	var col := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if col:
+		hitbox_offset = col.position.y
+
+	# AnimatedSprite2D scales from its center. Compensate vertically so the
+	# sprite's feet stay planted when crouch/squash poses change its height.
+	var extra_y := PLAYER_FRAME_HEIGHT * (Sprites.SCALE_CHAR.y - asp.scale.y) * 0.5
+	asp.position.y = hitbox_offset + extra_y
 
 func set_checkpoint(pos: Vector2) -> void:
 	respawn_pos = pos
@@ -473,6 +487,8 @@ func _update_animation() -> void:
 		asp.play("idle" + suffix)
 		asp.scale = Sprites.SCALE_CHAR
 		asp.rotation = 0.0
+
+	_sync_anim_floor_anchor()
 
 # ── Squash & stretch ─────────────────────────────────────────────────────────
 func _update_squash_stretch(delta: float) -> void:
