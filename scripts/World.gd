@@ -85,6 +85,7 @@ var pause_menu       : CanvasLayer
 var vignette_rect    : ColorRect
 var dash_lines_layer : CanvasLayer
 var camera_fx        : CameraFX
+var radar            : Radar
 var combo_label      : Label
 var game_mode        : String = ""  # "", "endless", "daily"
 var renderer_25d     : Renderer25D
@@ -298,6 +299,11 @@ func _build_world() -> void:
 	)
 	minimap_node   = mm["node"]
 	minimap_player = mm["player_dot"]
+
+	# Radar
+	radar = Radar.new()
+	radar.setup(player_node, self)
+	hud["hud_layer"].add_child(radar)
 
 # -- Per-frame -----------------------------------------------------------------
 func _process(delta: float) -> void:
