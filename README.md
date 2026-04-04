@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/527192b0-098b-42a9-99d3-053eafda129e
 
 ```bash
 # Clone and open in Godot 4.6
-git clone https://github.com/huangbz/SimplePlatformer.git
+git clone https://github.com/whereissam/SimplePlatformer.git
 cd SimplePlatformer
 # Open project.godot in Godot 4.6, then press F5
 ```
