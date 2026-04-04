@@ -4,7 +4,7 @@ A fast, addictive platformer where every level is randomly generated. Wall jump 
 
 ![Title Screen](docs/game.png)
 
-<video src="docs/game.mp4" controls width="100%"></video>
+[![SimplePlatformer Gameplay](docs/game.png)](docs/game.mp4)
 
 ## Why Play This?
 
